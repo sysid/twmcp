@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -407,3 +408,267 @@ class TestExtractCommand:
         empty_file.write_text('{"unrelated": "data"}')
         result = runner.invoke(app, ["extract", str(empty_file)])
         assert result.exit_code == 1
+
+
+class TestCompileSelectInteractive:
+    """Test --select bare interactive mode (US1)."""
+
+    @patch("twmcp.cli.is_interactive_terminal", return_value=True)
+    @patch("twmcp.cli.select_servers_interactive")
+    def test_select_bare_calls_interactive(
+        self, mock_select, mock_tty, sample_config_path
+    ):
+        mock_select.return_value = ["github", "local-proxy"]
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert "github" in output["mcpServers"]
+        assert "local-proxy" in output["mcpServers"]
+        assert "atlassian" not in output["mcpServers"]
+
+    @patch("twmcp.cli.is_interactive_terminal", return_value=True)
+    @patch("twmcp.cli.select_servers_interactive")
+    def test_select_cancelled_exits_0(self, mock_select, mock_tty, sample_config_path):
+        mock_select.return_value = None
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+
+    @patch("twmcp.cli.is_interactive_terminal", return_value=True)
+    @patch("twmcp.cli.select_servers_interactive")
+    def test_select_empty_prints_message_exits_0(
+        self, mock_select, mock_tty, sample_config_path
+    ):
+        mock_select.return_value = []
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "no servers selected" in result.stdout.lower()
+
+    @patch("twmcp.cli.is_interactive_terminal", return_value=False)
+    def test_select_non_tty_exits_1(self, mock_tty, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "interactive terminal" in result.stdout.lower()
+
+
+class TestCompileSelectNonInteractive:
+    """Test --select <value> non-interactive filter mode (US2)."""
+
+    def test_select_value_filters_servers(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "github,local-proxy",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert "github" in output["mcpServers"]
+        assert "local-proxy" in output["mcpServers"]
+        assert "atlassian" not in output["mcpServers"]
+
+    def test_select_single_server(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "github",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert "github" in output["mcpServers"]
+        assert len(output["mcpServers"]) == 1
+
+    def test_select_unknown_server_exits_1(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "nonexistent",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "nonexistent" in result.stdout.lower()
+
+    def test_select_unknown_lists_available(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "nonexistent",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "github" in result.stdout
+
+    def test_select_mixed_valid_invalid_exits_1(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "github,bogus",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "bogus" in result.stdout.lower()
+
+    def test_select_equals_syntax(self, sample_config_path):
+        """--select=github should work the same as --select github."""
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select=github",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert "github" in output["mcpServers"]
+        assert len(output["mcpServers"]) == 1
+
+
+class TestCompileSelectWithAll:
+    """Test --all --select combinations (US3)."""
+
+    @patch("twmcp.cli.is_interactive_terminal", return_value=True)
+    @patch("twmcp.cli.select_servers_interactive")
+    def test_all_select_interactive_called_once(
+        self, mock_select, mock_tty, sample_config_path
+    ):
+        mock_select.return_value = ["github", "local-proxy"]
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "--all",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        mock_select.assert_called_once()
+
+    @patch("twmcp.cli.is_interactive_terminal", return_value=True)
+    @patch("twmcp.cli.select_servers_interactive")
+    def test_all_select_interactive_filters_all_agents(
+        self, mock_select, mock_tty, sample_config_path
+    ):
+        mock_select.return_value = ["github", "local-proxy"]
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "--all",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        # atlassian should not appear in any agent output
+        assert "atlassian" not in result.stdout
+
+    def test_all_select_value_filters_all_agents(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "--all",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "github,local-proxy",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "atlassian" not in result.stdout
+
+    def test_all_select_value_incompatible_still_skipped(self, sample_config_path):
+        """claude-desktop skips http servers; --select of http-only should produce empty for that agent."""
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "--all",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "atlassian",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        # claude-desktop section should have no servers since atlassian is http
+        output = result.stdout
+        assert "claude-desktop" in output

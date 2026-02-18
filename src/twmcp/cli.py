@@ -2,12 +2,22 @@ import json
 from pathlib import Path
 from typing import Optional
 
+import click
 import typer
 
 from twmcp.agents import get_profile, list_agents, AGENT_REGISTRY
 from twmcp.compiler import transform_for_agent, write_config
-from twmcp.config import load_and_resolve
+from twmcp.config import CanonicalConfig, load_and_resolve
 from twmcp.extractor import extract_from_file
+from twmcp.selector import (
+    is_interactive_terminal,
+    parse_select_value,
+    select_servers_interactive,
+    validate_server_names,
+)
+
+# Sentinel value for bare --select (interactive mode)
+_INTERACTIVE = "__interactive__"
 
 app = typer.Typer(add_completion=False)
 
@@ -44,6 +54,11 @@ def compile(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Print compiled JSON to stdout, do not write files"
     ),
+    select: Optional[str] = typer.Option(
+        None,
+        "--select",
+        help="Select servers: bare for interactive, comma-separated for filter",
+    ),
 ) -> None:
     """Compile canonical config for a specific agent or all agents."""
     if not agent and not all_agents:
@@ -58,12 +73,56 @@ def compile(
         raise typer.Exit(1)
 
     canonical = _load_config_or_exit(config)
+    canonical = _resolve_selection(select, canonical)
 
     if all_agents:
         _compile_all(canonical, dry_run)
     else:
         assert agent is not None  # guarded by the check above
         _compile_single(agent, canonical, dry_run)
+
+
+def _resolve_selection(
+    select: str | None, canonical: CanonicalConfig
+) -> CanonicalConfig:
+    """Apply --select filtering to canonical config.
+
+    Returns the original config if select is None, or a filtered copy
+    containing only the selected servers.
+    """
+    if select is None:
+        return canonical
+
+    if select == _INTERACTIVE:
+        if not is_interactive_terminal():
+            typer.echo(
+                "Error: --select requires an interactive terminal.\n"
+                "  Use --select <names> for non-interactive mode.",
+            )
+            raise typer.Exit(1)
+
+        selected = select_servers_interactive(canonical.servers)
+        if selected is None:
+            raise typer.Exit(0)
+        if not selected:
+            typer.echo("No servers selected.")
+            raise typer.Exit(0)
+    else:
+        try:
+            names = parse_select_value(select)
+        except ValueError as e:
+            typer.echo(f"Error: {e}")
+            raise typer.Exit(1)
+        try:
+            selected = validate_server_names(
+                names, set(canonical.servers.keys())
+            )
+        except ValueError as e:
+            typer.echo(f"Error: {e}")
+            raise typer.Exit(1)
+
+    filtered = {k: v for k, v in canonical.servers.items() if k in selected}
+    return CanonicalConfig(servers=filtered, env_file=canonical.env_file)
 
 
 def _compile_single(agent: str, canonical, dry_run: bool) -> None:
@@ -144,3 +203,53 @@ def agents(
         for a in list_agents():
             path_str = str(a.config_path).replace(str(Path.home()), "~")
             typer.echo(f"{a.name:<20s} {path_str:<50s} {a.top_level_key}")
+
+
+def _apply_select_patch(click_cmd: click.Command) -> None:
+    """Apply the optional-value patch to --select on a Click command."""
+    cmd = (
+        click_cmd.commands.get("compile")
+        if isinstance(click_cmd, click.Group)
+        else click_cmd
+    )
+    if cmd is None:
+        return
+    for param in cmd.params:
+        if isinstance(param, click.Option) and param.name == "select":
+            param._flag_needs_value = True
+            param.flag_value = _INTERACTIVE
+            return
+
+
+def _install_select_patch() -> None:
+    """Monkey-patch typer.main.get_command to apply the --select patch.
+
+    Typer recreates Click commands on every get_command() call, so a
+    one-time patch gets lost. This wraps get_command to reapply the
+    patch each time a fresh Click command tree is built.
+
+    Workaround for Click #3084 regression and Typer's removal of
+    flag_value. Can be removed when Click ships the fix.
+    """
+    original = typer.main.get_command
+
+    def _patched_get_command(typer_app: typer.Typer) -> click.Command:
+        click_app = original(typer_app)
+        if typer_app is app:
+            _apply_select_patch(click_app)
+        return click_app
+
+    typer.main.get_command = _patched_get_command  # type: ignore[assignment]
+
+    # Typer's CliRunner (typer/testing.py) imports get_command at module
+    # level as a local alias (_get_command). Without patching that reference
+    # too, runner.invoke() in tests bypasses our patch entirely.
+    try:
+        from typer import testing as _typer_testing
+
+        _typer_testing._get_command = _patched_get_command  # type: ignore[attr-defined]
+    except (ImportError, AttributeError):
+        pass  # testing module not available or internal name changed
+
+
+_install_select_patch()
