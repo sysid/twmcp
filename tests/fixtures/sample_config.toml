@@ -1,0 +1,29 @@
+env_file = "secrets.env"
+
+[servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+type = "stdio"
+
+[servers.github.env]
+GITHUB_TOKEN = "${GITHUB_TOKEN}"
+
+[servers.github.overrides.copilot-cli]
+type = "local"
+
+[servers.atlassian]
+type = "http"
+url = "https://atc.bmwgroup.net/mcp/"
+tools = ["*"]
+
+[servers.atlassian.headers]
+X-Atlassian-Token = "${CONFLUENCE_TOKEN}"
+X-Atlassian-Url = "https://atc.bmwgroup.net/confluence"
+
+[servers.local-proxy]
+command = "mcp-proxy"
+args = ["http://localhost:8113/sse"]
+type = "stdio"
+
+[servers.local-proxy.env]
+API_TOKEN = "${API_TOKEN:-default-token}"

@@ -1,0 +1,26 @@
+# Base
+.workmux.yaml
+thoughts/
+.envrc
+.idea/
+tags
+
+# Python
+.tox/
+report.xml
+coverage.xml
+dist/
+*.pyc
+.coverage
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+__pycache__/
+venv/
+.pdm-python
+
+# Universal
+.DS_Store
+*.tmp
+*.swp
+.vscode/

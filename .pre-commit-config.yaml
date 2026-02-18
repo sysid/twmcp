@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.13
+    hooks:
+      - id: ruff-format
+        files: ^(src/twmcp|tests)/
+      - id: ruff
+        args: [--fix]
+        files: ^(src/twmcp|tests)/
+
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty
+        entry: ty check src/twmcp
+        language: system
+        types: [python]
+        files: ^src/twmcp/
+        pass_filenames: false

@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_test123"
+      }
+    },
+    "atlassian": {
+      "type": "http",
+      "url": "https://atc.bmwgroup.net/mcp/",
+      "headers": {
+        "X-Atlassian-Token": "test-confluence-token",
+        "X-Atlassian-Url": "https://atc.bmwgroup.net/confluence"
+      },
+      "tools": ["*"]
+    },
+    "local-proxy": {
+      "type": "local",
+      "command": "mcp-proxy",
+      "args": ["http://localhost:8113/sse"],
+      "env": {
+        "API_TOKEN": "from-dotenv-token"
+      }
+    }
+  }
+}

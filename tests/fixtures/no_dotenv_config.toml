@@ -1,0 +1,5 @@
+[servers.test]
+command = "test"
+type = "stdio"
+[servers.test.env]
+TOKEN = "${API_TOKEN:-default-token}"
