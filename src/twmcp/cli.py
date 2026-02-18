@@ -9,6 +9,7 @@ from twmcp import __version__
 from twmcp.agents import get_profile, list_agents, AGENT_REGISTRY
 from twmcp.compiler import transform_for_agent, write_config
 from twmcp.config import CanonicalConfig, load_and_resolve
+from twmcp.editor import init_config, open_in_editor
 from twmcp.extractor import extract_from_file
 from twmcp.selector import (
     is_interactive_terminal,
@@ -189,6 +190,36 @@ def extract(
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
     typer.echo(toml_output, nl=False)
+
+
+@app.command()
+def edit(
+    config: Path = typer.Option(DEFAULT_CONFIG, help="Path to config file"),
+    init: bool = typer.Option(False, "--init", help="Create default config"),
+) -> None:
+    """Open the canonical config in your editor."""
+    if init:
+        try:
+            init_config(config)
+        except FileExistsError:
+            typer.echo(
+                f"Error: Config file already exists: {config}\n"
+                f"  Run 'twmcp edit' to edit the existing config.",
+            )
+            raise typer.Exit(1)
+    elif not config.exists():
+        typer.echo(
+            f"Error: Config file not found: {config}\n"
+            f"  Run 'twmcp edit --init' to create a default config.",
+        )
+        raise typer.Exit(1)
+    try:
+        rc = open_in_editor(config)
+    except FileNotFoundError as e:
+        typer.echo(f"Error: {e}")
+        raise typer.Exit(1)
+    if rc != 0:
+        raise typer.Exit(rc)
 
 
 @app.command()

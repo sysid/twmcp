@@ -853,3 +853,85 @@ class TestBareInvocation:
         assert "compile" in result.stdout.lower()
         assert "agents" in result.stdout.lower()
         assert "extract" in result.stdout.lower()
+
+
+class TestEditCommand:
+    """Test twmcp edit command."""
+
+    @patch("twmcp.cli.open_in_editor", return_value=0)
+    def test_edit_opens_editor_with_config(self, mock_open, sample_config_path):
+        result = runner.invoke(
+            app, ["edit", "--config", str(sample_config_path)]
+        )
+        assert result.exit_code == 0
+        mock_open.assert_called_once_with(sample_config_path)
+
+    @patch("twmcp.cli.open_in_editor", return_value=0)
+    def test_edit_custom_config_path(self, mock_open, tmp_path):
+        config = tmp_path / "custom.toml"
+        config.write_text("[servers]")
+        result = runner.invoke(app, ["edit", "--config", str(config)])
+        assert result.exit_code == 0
+        mock_open.assert_called_once_with(config)
+
+    def test_edit_missing_config_exits_1(self, tmp_path):
+        result = runner.invoke(
+            app, ["edit", "--config", str(tmp_path / "nonexistent.toml")]
+        )
+        assert result.exit_code == 1
+
+    def test_edit_missing_config_suggests_init(self, tmp_path):
+        result = runner.invoke(
+            app, ["edit", "--config", str(tmp_path / "nonexistent.toml")]
+        )
+        assert "--init" in result.stdout
+
+    @patch("twmcp.cli.open_in_editor", return_value=0)
+    def test_init_creates_config_then_opens(self, mock_open, tmp_path):
+        config = tmp_path / "config.toml"
+        result = runner.invoke(
+            app, ["edit", "--init", "--config", str(config)]
+        )
+        assert result.exit_code == 0
+        assert config.exists()
+        mock_open.assert_called_once_with(config)
+
+    @patch("twmcp.cli.open_in_editor", return_value=0)
+    def test_init_creates_parent_dirs(self, mock_open, tmp_path):
+        config = tmp_path / "deep" / "nested" / "config.toml"
+        result = runner.invoke(
+            app, ["edit", "--init", "--config", str(config)]
+        )
+        assert result.exit_code == 0
+        assert config.exists()
+
+    def test_init_existing_config_exits_1(self, tmp_path):
+        config = tmp_path / "config.toml"
+        config.write_text("existing content")
+        result = runner.invoke(
+            app, ["edit", "--init", "--config", str(config)]
+        )
+        assert result.exit_code == 1
+
+    def test_init_existing_config_says_already_exists(self, tmp_path):
+        config = tmp_path / "config.toml"
+        config.write_text("existing content")
+        result = runner.invoke(
+            app, ["edit", "--init", "--config", str(config)]
+        )
+        assert "already exists" in result.stdout
+
+    def test_init_existing_config_suggests_edit(self, tmp_path):
+        config = tmp_path / "config.toml"
+        config.write_text("existing content")
+        result = runner.invoke(
+            app, ["edit", "--init", "--config", str(config)]
+        )
+        assert "twmcp edit" in result.stdout
+
+    def test_init_existing_config_unchanged(self, tmp_path):
+        config = tmp_path / "config.toml"
+        original = "existing content"
+        config.write_text(original)
+        runner.invoke(app, ["edit", "--init", "--config", str(config)])
+        assert config.read_text() == original
