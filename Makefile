@@ -60,19 +60,19 @@ publish:  ## publish to PyPI
 
 .PHONY: bump-major
 bump-major: check-github-token  ## bump-major, tag and push
-	uv run bump-my-version bump --commit --tag major
+	bump-my-version bump --commit --tag major
 	git push && git push --tags
 	@$(MAKE) create-release
 
 .PHONY: bump-minor
 bump-minor: check-github-token  ## bump-minor, tag and push
-	uv run bump-my-version bump --commit --tag minor
+	bump-my-version bump --commit --tag minor
 	git push && git push --tags
 	@$(MAKE) create-release
 
 .PHONY: bump-patch
 bump-patch: check-github-token  ## bump-patch, tag and push
-	uv run bump-my-version bump --commit --tag patch
+	bump-my-version bump --commit --tag patch
 	git push && git push --tags
 	@$(MAKE) create-release
 
