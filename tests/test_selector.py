@@ -115,11 +115,11 @@ class TestSelectServersInteractive:
         assert "local-proxy [stdio]" in labels
 
     @patch("twmcp.selector.TerminalMenu")
-    def test_all_preselected(self, mock_menu_cls, servers):
+    def test_no_preselected_entries(self, mock_menu_cls, servers):
         mock_menu_cls.return_value.show.return_value = (0,)
         select_servers_interactive(servers)
         call_kwargs = mock_menu_cls.call_args[1]
-        assert call_kwargs["preselected_entries"] == list(range(len(servers)))
+        assert "preselected_entries" not in call_kwargs
 
     @patch("twmcp.selector.TerminalMenu")
     def test_single_index_returns_as_list(self, mock_menu_cls, servers):

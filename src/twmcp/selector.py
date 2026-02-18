@@ -58,7 +58,6 @@ def select_servers_interactive(
         labels,
         multi_select=True,
         show_multi_select_hint=True,
-        preselected_entries=list(range(len(labels))),
         title="Select MCP servers (Space=toggle, Enter=confirm, Esc=cancel):",
     )
     chosen = menu.show()

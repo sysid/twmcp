@@ -40,6 +40,15 @@ pre-commit-install:  ## install pre-commit hooks
 ################################################################################
 # Building, Deploying \
 BUILDING:  ## ############################################################
+.PHONY: install
+install: uninstall  ## uv install
+	uv tool install -e .
+	twmcp --install-completion bash
+
+.PHONY: uninstall
+uninstall:  ## uv uninstall
+	-uv tool uninstall twmcp
+
 
 .PHONY: build
 build: clean format  ## format and build
