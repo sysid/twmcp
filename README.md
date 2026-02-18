@@ -307,6 +307,19 @@ make lint       # ruff check --fix
 make build      # format + build
 ```
 
+
+### Typer/Click Monkey-Patching
+- Typer recreates Click commands on every `get_command()` call - one-time patches get lost
+- `typer.testing.CliRunner` imports `get_command` at module level as `_get_command` - patching `typer.main.get_command` alone doesn't affect tests
+- Must patch BOTH `typer.main.get_command` AND `typer.testing._get_command`
+- Use `from typer import testing as _tt` (not `import typer.testing`) inside functions to avoid Python scoping issues with the `typer` name
+
+### Architecture
+- `selector.py` - server selection utilities (parse, validate, interactive prompt)
+- `cli.py` - typer app with `compile` and `agents` commands
+- `_resolve_selection()` in cli.py handles both interactive and non-interactive `--select`
+- Click `_flag_needs_value` patch enables dual-mode `--select` (bare=interactive, with value=filter)
+
 ## License
 
 BSD-3-Clause

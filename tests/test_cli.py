@@ -672,3 +672,92 @@ class TestCompileSelectWithAll:
         # claude-desktop section should have no servers since atlassian is http
         output = result.stdout
         assert "claude-desktop" in output
+
+
+class TestVersionFlag:
+    """Test --version / -V flag and hidden version command."""
+
+    def test_version_long_flag(self):
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+        assert "twmcp version:" in result.stdout.lower()
+
+    def test_version_short_flag(self):
+        result = runner.invoke(app, ["-V"])
+        assert result.exit_code == 0
+        assert "twmcp version:" in result.stdout.lower()
+
+    def test_version_contains_semver(self):
+        """Version output should contain a semver-like string."""
+        import re
+
+        result = runner.invoke(app, ["--version"])
+        assert re.search(r"\d+\.\d+\.\d+", result.stdout)
+
+    def test_version_hidden_command(self):
+        result = runner.invoke(app, ["version"])
+        assert result.exit_code == 0
+        assert "twmcp version:" in result.stdout.lower()
+
+
+class TestVerboseFlag:
+    """Test --verbose / -v flag configures logging."""
+
+    def test_verbose_long_flag_accepted(self, sample_config_path):
+        """--verbose should be accepted without error."""
+        result = runner.invoke(
+            app,
+            [
+                "--verbose",
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_verbose_short_flag_accepted(self, sample_config_path):
+        """-v should be accepted without error."""
+        result = runner.invoke(
+            app,
+            [
+                "-v",
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_verbose_sets_debug_logging(self, sample_config_path):
+        """--verbose should configure root logger to DEBUG level."""
+        import logging
+
+        result = runner.invoke(
+            app,
+            [
+                "--verbose",
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        assert logging.getLogger().level == logging.DEBUG
+
+
+class TestBareInvocation:
+    """Test bare invocation (no subcommand, no flags) shows help."""
+
+    def test_bare_shows_help(self):
+        result = runner.invoke(app, [])
+        assert result.exit_code == 0
+        assert "compile" in result.stdout.lower()
+        assert "agents" in result.stdout.lower()
+        assert "extract" in result.stdout.lower()

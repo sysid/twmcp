@@ -1,10 +1,12 @@
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 
 import click
 import typer
 
+from twmcp import __version__
 from twmcp.agents import get_profile, list_agents, AGENT_REGISTRY
 from twmcp.compiler import transform_for_agent, write_config
 from twmcp.config import CanonicalConfig, load_and_resolve
@@ -19,7 +21,9 @@ from twmcp.selector import (
 # Sentinel value for bare --select (interactive mode)
 _INTERACTIVE = "__interactive__"
 
-app = typer.Typer(add_completion=False)
+logger = logging.getLogger(__name__)
+
+app = typer.Typer(add_completion=True)
 
 DEFAULT_CONFIG = Path.home() / ".config" / "twmcp" / "config.toml"
 
@@ -203,6 +207,30 @@ def agents(
         for a in list_agents():
             path_str = str(a.config_path).replace(str(Path.home()), "~")
             typer.echo(f"{a.name:<20s} {path_str:<50s} {a.top_level_key}")
+
+
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(False, "-v", "--verbose", help="verbosity"),
+    version: bool = typer.Option(False, "-V", "--version", help="show version"),
+):
+    log_fmt = r"%(asctime)-15s %(levelname)-7s %(message)s"
+    logging.basicConfig(
+        format=log_fmt,
+        level=logging.DEBUG if verbose else logging.INFO,
+        datefmt="%m-%d %H:%M:%S",
+        force=True,
+    )
+    if ctx.invoked_subcommand is None and version:
+        ctx.invoke(print_version)
+    if ctx.invoked_subcommand is None and not version:
+        typer.echo(ctx.get_help())
+
+
+@app.command("version", help="Show version", hidden=True)
+def print_version() -> None:
+    typer.echo(f"twmcp version: {__version__}")
 
 
 def _apply_select_patch(click_cmd: click.Command) -> None:
