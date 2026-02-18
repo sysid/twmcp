@@ -7,6 +7,7 @@ import typer
 from twmcp.agents import get_profile, list_agents, AGENT_REGISTRY
 from twmcp.compiler import transform_for_agent, write_config
 from twmcp.config import load_and_resolve
+from twmcp.extractor import extract_from_file
 
 app = typer.Typer(add_completion=False)
 
@@ -103,6 +104,22 @@ def _compile_all(canonical, dry_run: bool) -> None:
 
     if errors:
         raise typer.Exit(1)
+
+
+@app.command()
+def extract(
+    mcp_json_file: Path = typer.Argument(help="Path to MCP JSON configuration file"),
+) -> None:
+    """Extract canonical TOML config from an MCP JSON file."""
+    try:
+        toml_output = extract_from_file(mcp_json_file)
+    except FileNotFoundError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(toml_output, nl=False)
 
 
 @app.command()

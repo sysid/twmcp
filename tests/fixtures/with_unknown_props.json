@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "custom-server": {
+      "command": "my-tool",
+      "args": ["--start"],
+      "type": "stdio",
+      "disabled": true,
+      "timeout": 30,
+      "customField": "some-value",
+      "env": {
+        "HOME": "/usr/local"
+      }
+    }
+  }
+}

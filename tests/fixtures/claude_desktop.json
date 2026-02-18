@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_abc123def456"
+      }
+    },
+    "local-proxy": {
+      "command": "mcp-proxy",
+      "args": ["http://localhost:8113/sse"],
+      "env": {
+        "API_TOKEN": "tok_secret_xyz",
+        "DEBUG": "true"
+      }
+    }
+  }
+}
