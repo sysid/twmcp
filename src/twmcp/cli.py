@@ -122,9 +122,7 @@ def _resolve_selection(
             raise typer.Exit(1)
         if names:
             try:
-                selected = validate_server_names(
-                    names, set(canonical.servers.keys())
-                )
+                selected = validate_server_names(names, set(canonical.servers.keys()))
             except ValueError as e:
                 typer.echo(f"Error: {e}")
                 raise typer.Exit(1)
@@ -239,5 +237,3 @@ def main(
 @app.command("version", help="Show version", hidden=True)
 def print_version() -> None:
     typer.echo(f"twmcp version: {__version__}")
-
-

@@ -484,9 +484,7 @@ class TestCompileInteractive:
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=True)
     @patch("twmcp.cli.select_servers_interactive")
-    def test_interactive_calls_menu(
-        self, mock_select, mock_tty, sample_config_path
-    ):
+    def test_interactive_calls_menu(self, mock_select, mock_tty, sample_config_path):
         mock_select.return_value = ["github", "local-proxy"]
         result = runner.invoke(
             app,
