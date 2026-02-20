@@ -410,12 +410,81 @@ class TestExtractCommand:
         assert result.exit_code == 1
 
 
-class TestCompileSelectInteractive:
-    """Test --select bare interactive mode (US1)."""
+class TestCompileSelectNone:
+    """Test --select none for empty configuration (US2)."""
+
+    def test_select_none_produces_empty_config(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "none",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output == {"mcpServers": {}}
+
+    def test_select_none_with_all(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "--all",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "none",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        # All agent sections should have empty server maps
+        assert "github" not in result.stdout
+        assert "atlassian" not in result.stdout
+        assert "local-proxy" not in result.stdout
+
+    def test_select_empty_string_exits_1(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "--select none" in result.stdout
+
+    def test_select_whitespace_exits_1(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                " , ",
+            ],
+        )
+        assert result.exit_code == 1
+
+
+class TestCompileInteractive:
+    """Test --interactive flag for interactive server selection (US3)."""
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=True)
     @patch("twmcp.cli.select_servers_interactive")
-    def test_select_bare_calls_interactive(
+    def test_interactive_calls_menu(
         self, mock_select, mock_tty, sample_config_path
     ):
         mock_select.return_value = ["github", "local-proxy"]
@@ -426,7 +495,7 @@ class TestCompileSelectInteractive:
                 "copilot-cli",
                 "--config",
                 str(sample_config_path),
-                "--select",
+                "--interactive",
                 "--dry-run",
             ],
         )
@@ -438,7 +507,9 @@ class TestCompileSelectInteractive:
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=True)
     @patch("twmcp.cli.select_servers_interactive")
-    def test_select_cancelled_exits_0(self, mock_select, mock_tty, sample_config_path):
+    def test_interactive_cancelled_exits_0(
+        self, mock_select, mock_tty, sample_config_path
+    ):
         mock_select.return_value = None
         result = runner.invoke(
             app,
@@ -447,7 +518,7 @@ class TestCompileSelectInteractive:
                 "copilot-cli",
                 "--config",
                 str(sample_config_path),
-                "--select",
+                "--interactive",
                 "--dry-run",
             ],
         )
@@ -455,7 +526,7 @@ class TestCompileSelectInteractive:
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=True)
     @patch("twmcp.cli.select_servers_interactive")
-    def test_select_empty_produces_empty_config(
+    def test_interactive_empty_produces_empty_config(
         self, mock_select, mock_tty, sample_config_path
     ):
         """Enter without selecting → empty config output, not first server."""
@@ -467,7 +538,7 @@ class TestCompileSelectInteractive:
                 "copilot-cli",
                 "--config",
                 str(sample_config_path),
-                "--select",
+                "--interactive",
                 "--dry-run",
             ],
         )
@@ -476,7 +547,7 @@ class TestCompileSelectInteractive:
         assert output == {"mcpServers": {}}
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=False)
-    def test_select_non_tty_exits_1(self, mock_tty, sample_config_path):
+    def test_interactive_non_tty_exits_1(self, mock_tty, sample_config_path):
         result = runner.invoke(
             app,
             [
@@ -484,7 +555,7 @@ class TestCompileSelectInteractive:
                 "copilot-cli",
                 "--config",
                 str(sample_config_path),
-                "--select",
+                "--interactive",
                 "--dry-run",
             ],
         )
@@ -597,11 +668,11 @@ class TestCompileSelectNonInteractive:
 
 
 class TestCompileSelectWithAll:
-    """Test --all --select combinations (US3)."""
+    """Test --all with --select and --interactive combinations."""
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=True)
     @patch("twmcp.cli.select_servers_interactive")
-    def test_all_select_interactive_called_once(
+    def test_all_interactive_called_once(
         self, mock_select, mock_tty, sample_config_path
     ):
         mock_select.return_value = ["github", "local-proxy"]
@@ -612,7 +683,7 @@ class TestCompileSelectWithAll:
                 "--all",
                 "--config",
                 str(sample_config_path),
-                "--select",
+                "--interactive",
                 "--dry-run",
             ],
         )
@@ -621,7 +692,7 @@ class TestCompileSelectWithAll:
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=True)
     @patch("twmcp.cli.select_servers_interactive")
-    def test_all_select_interactive_filters_all_agents(
+    def test_all_interactive_filters_all_agents(
         self, mock_select, mock_tty, sample_config_path
     ):
         mock_select.return_value = ["github", "local-proxy"]
@@ -632,7 +703,7 @@ class TestCompileSelectWithAll:
                 "--all",
                 "--config",
                 str(sample_config_path),
-                "--select",
+                "--interactive",
                 "--dry-run",
             ],
         )
@@ -674,6 +745,27 @@ class TestCompileSelectWithAll:
         # claude-desktop section should have no servers since atlassian is http
         output = result.stdout
         assert "claude-desktop" in output
+
+
+class TestCompileSelectInteractiveMutualExclusivity:
+    """Test --select and --interactive mutual exclusivity (US4)."""
+
+    def test_select_and_interactive_exits_1(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--select",
+                "github",
+                "--interactive",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "mutually exclusive" in result.stdout.lower()
 
 
 class TestVersionFlag:

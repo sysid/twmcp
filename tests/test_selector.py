@@ -35,6 +35,21 @@ class TestParseSelectValue:
         with pytest.raises(ValueError, match="No server names"):
             parse_select_value("  ,  ,  ")
 
+    def test_none_keyword_returns_empty_list(self):
+        assert parse_select_value("none") == []
+
+    def test_none_mixed_with_names_raises(self):
+        with pytest.raises(ValueError, match="reserved keyword"):
+            parse_select_value("none,github")
+
+    def test_none_case_sensitive(self):
+        """'None' (capitalized) is NOT the reserved keyword — treated as a server name."""
+        assert parse_select_value("None") == ["None"]
+
+    def test_empty_string_error_suggests_none(self):
+        with pytest.raises(ValueError, match="--select none"):
+            parse_select_value("")
+
 
 class TestValidateServerNames:
     @pytest.fixture

@@ -12,14 +12,31 @@ from simple_term_menu import TerminalMenu
 from twmcp.config import Server
 
 
+_NONE_KEYWORD = "none"
+
+
 def parse_select_value(value: str) -> list[str]:
     """Parse comma-separated server names from --select value.
 
+    The keyword ``none`` (case-sensitive) is reserved: it returns an
+    empty list, signalling that the caller should produce a config with
+    zero servers.  ``none`` cannot be combined with other names.
+
     Raises ValueError if no valid names remain after parsing.
     """
+    if value == _NONE_KEYWORD:
+        return []
+
     names = [name.strip() for name in value.split(",") if name.strip()]
     if not names:
-        raise ValueError("No server names provided to --select.")
+        raise ValueError(
+            "No server names provided. Use --select none for empty configuration."
+        )
+    if _NONE_KEYWORD in names:
+        raise ValueError(
+            "'none' is a reserved keyword and cannot be combined with server names. "
+            "Use --select none alone for empty configuration."
+        )
     return names
 
 
