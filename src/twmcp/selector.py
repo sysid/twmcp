@@ -57,12 +57,18 @@ def select_servers_interactive(
     menu = TerminalMenu(
         labels,
         multi_select=True,
+        multi_select_select_on_accept=False,
+        multi_select_empty_ok=True,
         show_multi_select_hint=True,
         title="Select MCP servers (Space=toggle, Enter=confirm, Esc=cancel):",
     )
     chosen = menu.show()
 
     if chosen is None:
+        # Both Escape and Enter-with-empty return None from show().
+        # Distinguish via chosen_accept_key (set only on Enter).
+        if menu.chosen_accept_key is not None:
+            return []
         return None
 
     # TerminalMenu returns int for single selection, tuple for multi

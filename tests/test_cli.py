@@ -455,9 +455,10 @@ class TestCompileSelectInteractive:
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=True)
     @patch("twmcp.cli.select_servers_interactive")
-    def test_select_empty_prints_message_exits_0(
+    def test_select_empty_produces_empty_config(
         self, mock_select, mock_tty, sample_config_path
     ):
+        """Enter without selecting → empty config output, not first server."""
         mock_select.return_value = []
         result = runner.invoke(
             app,
@@ -471,7 +472,8 @@ class TestCompileSelectInteractive:
             ],
         )
         assert result.exit_code == 0
-        assert "no servers selected" in result.stdout.lower()
+        output = json.loads(result.stdout)
+        assert output == {"mcpServers": {}}
 
     @patch("twmcp.cli.is_interactive_terminal", return_value=False)
     def test_select_non_tty_exits_1(self, mock_tty, sample_config_path):

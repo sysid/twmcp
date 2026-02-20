@@ -108,9 +108,6 @@ def _resolve_selection(
         selected = select_servers_interactive(canonical.servers)
         if selected is None:
             raise typer.Exit(0)
-        if not selected:
-            typer.echo("No servers selected.")
-            raise typer.Exit(0)
     else:
         try:
             names = parse_select_value(select)

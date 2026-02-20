@@ -95,14 +95,27 @@ class TestSelectServersInteractive:
     @patch("twmcp.selector.TerminalMenu")
     def test_cancel_returns_none(self, mock_menu_cls, servers):
         mock_menu_cls.return_value.show.return_value = None
+        mock_menu_cls.return_value.chosen_accept_key = None
         result = select_servers_interactive(servers)
         assert result is None
 
     @patch("twmcp.selector.TerminalMenu")
     def test_empty_selection_returns_empty_list(self, mock_menu_cls, servers):
-        mock_menu_cls.return_value.show.return_value = ()
+        """Enter without Space-toggling → empty list (not first item)."""
+        mock_menu_cls.return_value.show.return_value = None
+        mock_menu_cls.return_value.chosen_accept_key = "enter"
         result = select_servers_interactive(servers)
         assert result == []
+
+    @patch("twmcp.selector.TerminalMenu")
+    def test_multi_select_does_not_auto_select_on_accept(self, mock_menu_cls, servers):
+        """TerminalMenu must be created with multi_select_select_on_accept=False."""
+        mock_menu_cls.return_value.show.return_value = (0,)
+        mock_menu_cls.return_value.chosen_accept_key = "enter"
+        select_servers_interactive(servers)
+        call_kwargs = mock_menu_cls.call_args[1]
+        assert call_kwargs["multi_select_select_on_accept"] is False
+        assert call_kwargs["multi_select_empty_ok"] is True
 
     @patch("twmcp.selector.TerminalMenu")
     def test_labels_show_name_and_type(self, mock_menu_cls, servers):
