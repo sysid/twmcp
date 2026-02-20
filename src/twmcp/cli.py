@@ -115,9 +115,7 @@ def _resolve_selection(
             typer.echo(f"Error: {e}")
             raise typer.Exit(1)
         try:
-            selected = validate_server_names(
-                names, set(canonical.servers.keys())
-            )
+            selected = validate_server_names(names, set(canonical.servers.keys()))
         except ValueError as e:
             typer.echo(f"Error: {e}")
             raise typer.Exit(1)

@@ -6,6 +6,9 @@ app_root := $(CURDIR)
 pkg_src = $(app_root)/src/twmcp
 tests_src = $(app_root)/tests
 
+.PHONY: all
+all: clean build publish  ## Build and publish to PyPI
+
 ################################################################################
 # Testing \
 TESTING:  ## ############################################################
