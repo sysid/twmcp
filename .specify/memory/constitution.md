@@ -1,23 +1,25 @@
 <!--
 Sync Impact Report
 ===================
-Version change: 1.1.1 → 1.2.0 (MINOR: add src/ layout, uv run pattern,
-  fix directory layout, expand tooling guidance)
-Modified principles: None (principles unchanged)
-Added sections: None
+Version change: 1.2.0 → 1.3.0 (MINOR: add Documentation Completeness
+  principle)
+Modified principles: None (existing principles unchanged)
+Added sections:
+  - Core Principles > IV. Documentation Completeness
 Removed sections: None
-Modified sections:
-  - Technical Constraints > Tooling: added uv run Makefile pattern,
-    clarified environment management
-  - Technical Constraints > Testing: updated test execution to uv run
-  - Technical Constraints > Directory Layout: fixed to src/ layout
+Modified sections: None
 Templates requiring updates:
-  - .specify/templates/plan-template.md ✅ already uses src/ as default
+  - .specify/templates/plan-template.md ✅ no changes needed
   - .specify/templates/spec-template.md ✅ no changes needed
-  - .specify/templates/tasks-template.md ✅ already uses src/ paths
+  - .specify/templates/tasks-template.md ✅ Polish phase already
+    includes documentation task slot
   - .specify/templates/checklist-template.md ✅ no changes needed
   - .specify/templates/agent-file-template.md ✅ no changes needed
-Follow-up TODOs: None
+Runtime docs requiring updates:
+  - README.md ⚠️ pending (stale --select docs, monkey-patch references)
+  - CLAUDE.md ✅ no changes needed (project CLAUDE.md is current)
+  - MEMORY.md ⚠️ pending (stale monkey-patch patterns)
+Follow-up TODOs: Update README.md and MEMORY.md in same session
 -->
 
 # twmcp Constitution
@@ -44,6 +46,23 @@ without exception. This project adds no overrides.
 
 **Rationale**: A CLI tool's value is its interface contract. Predictable
 I/O behavior enables composition, scripting, and automated testing.
+
+### IV. Documentation Completeness
+
+The global CLAUDE.md rule "task is NOT complete until documentation
+reflects changes" applies with these project-specific artifacts:
+
+- **CLAUDE.md** (project root): Update Active Technologies, Recent
+  Changes, Commands, and Code Style when implementation changes them.
+- **README.md**: Update CLI Reference, flag documentation, and
+  Architecture sections when CLI interface changes.
+- **specs/**: Spec and task files remain as historical records — do
+  not update completed specs for post-implementation changes.
+
+**Rationale**: This project's README is the primary user-facing
+documentation. Stale CLI examples or architectural descriptions
+directly mislead users. Every code change that affects the user
+interface MUST be reflected before the task is considered complete.
 
 ## Technical Constraints
 
@@ -132,4 +151,4 @@ twmcp/
   removals/redefinitions, MINOR for new principles/sections, PATCH for
   clarifications and wording fixes.
 
-**Version**: 1.2.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-18
+**Version**: 1.3.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-20

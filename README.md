@@ -100,10 +100,13 @@ twmcp compile --all
 twmcp compile copilot-cli --dry-run
 
 # Select specific servers interactively
-twmcp compile copilot-cli --select
+twmcp compile copilot-cli --interactive
 
 # Filter servers non-interactively
 twmcp compile --all --select github,local-proxy
+
+# Compile with no servers (empty config)
+twmcp compile copilot-cli --select none
 ```
 
 ## What Gets Generated
@@ -242,8 +245,9 @@ type = "local"    # override type for copilot-cli only
 twmcp compile <agent>               # compile for one agent
 twmcp compile --all                 # compile for all agents
 twmcp compile <agent> --dry-run     # preview JSON output
-twmcp compile <agent> --select      # interactive server picker
+twmcp compile <agent> --interactive  # interactive server picker
 twmcp compile <agent> --select a,b  # filter to named servers
+twmcp compile <agent> --select none # empty config (no servers)
 twmcp compile --all --select a,b    # filter applied to all agents
 twmcp compile <agent> --config PATH # use custom config path
 
@@ -251,14 +255,17 @@ twmcp agents                        # list supported agents
 twmcp agents --json                 # list as JSON
 ```
 
-### `--select` Flag
+### `--select` and `--interactive` Flags
 
-The `--select` flag operates in two modes:
+Server filtering uses two separate flags:
 
-- **Bare** (`--select`): Opens an interactive terminal prompt where you toggle servers
-  with Space and confirm with Enter. All servers are pre-selected (opt-out model).
-- **With value** (`--select github,local-proxy`): Filters to the named servers without
-  any interactive prompt. Unknown names produce an error listing available servers.
+- **`--select <names>`**: Non-interactive filtering by comma-separated server names.
+  Unknown names produce an error listing available servers. Use `--select none` to
+  produce an empty config with zero servers.
+- **`--interactive`**: Opens an interactive terminal prompt where you toggle servers
+  with Space and confirm with Enter. Requires an interactive terminal (TTY).
+
+The two flags are mutually exclusive — using both produces an error.
 
 When used with `--all`, the selection is applied once and used for all agent compilations.
 
@@ -308,17 +315,10 @@ make build      # format + build
 ```
 
 
-### Typer/Click Monkey-Patching
-- Typer recreates Click commands on every `get_command()` call - one-time patches get lost
-- `typer.testing.CliRunner` imports `get_command` at module level as `_get_command` - patching `typer.main.get_command` alone doesn't affect tests
-- Must patch BOTH `typer.main.get_command` AND `typer.testing._get_command`
-- Use `from typer import testing as _tt` (not `import typer.testing`) inside functions to avoid Python scoping issues with the `typer` name
-
-### Architecture
+### Architecture Notes
 - `selector.py` - server selection utilities (parse, validate, interactive prompt)
-- `cli.py` - typer app with `compile` and `agents` commands
-- `_resolve_selection()` in cli.py handles both interactive and non-interactive `--select`
-- Click `_flag_needs_value` patch enables dual-mode `--select` (bare=interactive, with value=filter)
+- `cli.py` - typer app with `compile`, `extract`, `edit`, and `agents` commands
+- `_resolve_selection()` in cli.py routes `--select` (non-interactive) and `--interactive` (terminal menu) to the appropriate selector functions
 
 ## License
 
