@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from twmcp.agents import AgentProfile, get_profile, list_agents, AGENT_REGISTRY
@@ -18,7 +20,7 @@ class TestAgentProfile:
         assert p.top_level_key == "mcpServers"
         assert p.type_mapping == {"stdio": "local"}
         assert p.header_style == "flat"
-        assert str(p.config_path).endswith("mcp-config.json")
+        assert p.config_path == Path(".copilot") / "mcp-config.json"
 
     def test_intellij_profile(self):
         p = get_profile("intellij")
@@ -31,6 +33,14 @@ class TestAgentProfile:
         assert p.top_level_key == "mcpServers"
         assert p.header_style == "none"
 
+    def test_claude_code_profile(self):
+        p = get_profile("claude-code")
+        assert p.name == "claude-code"
+        assert p.config_path == Path(".claude") / "mcp-config.json"
+        assert p.top_level_key == "mcpServers"
+        assert p.type_mapping == {}
+        assert p.header_style == "flat"
+
     def test_unknown_agent_raises(self):
         with pytest.raises(KeyError, match="unknown-agent"):
             get_profile("unknown-agent")
@@ -38,7 +48,7 @@ class TestAgentProfile:
     def test_list_agents_returns_all(self):
         agents = list_agents()
         names = {a.name for a in agents}
-        assert names == {"copilot-cli", "intellij", "claude-desktop"}
+        assert names == {"copilot-cli", "intellij", "claude-desktop", "claude-code"}
 
-    def test_registry_has_three_agents(self):
-        assert len(AGENT_REGISTRY) == 3
+    def test_registry_has_four_agents(self):
+        assert len(AGENT_REGISTRY) == 4

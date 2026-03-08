@@ -14,7 +14,7 @@ class AgentProfile:
 AGENT_REGISTRY: dict[str, AgentProfile] = {
     "copilot-cli": AgentProfile(
         name="copilot-cli",
-        config_path=Path.home() / ".copilot" / "mcp-config.json",
+        config_path=Path(".copilot") / "mcp-config.json",
         top_level_key="mcpServers",
         type_mapping={"stdio": "local"},
         header_style="flat",
@@ -27,6 +27,13 @@ AGENT_REGISTRY: dict[str, AgentProfile] = {
         top_level_key="servers",
         type_mapping={},
         header_style="nested",
+    ),
+    "claude-code": AgentProfile(
+        name="claude-code",
+        config_path=Path(".claude") / "mcp-config.json",
+        top_level_key="mcpServers",
+        type_mapping={},
+        header_style="flat",
     ),
     "claude-desktop": AgentProfile(
         name="claude-desktop",

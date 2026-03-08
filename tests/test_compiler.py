@@ -115,6 +115,27 @@ class TestTransformForAgent:
         assert github["args"] == ["-y", "@modelcontextprotocol/server-github"]
         assert github["env"] == {"GITHUB_TOKEN": "test-token"}
 
+    def test_claude_code_includes_all_servers(self, simple_config):
+        result = transform_for_agent(simple_config, get_profile("claude-code"))
+        assert set(result["mcpServers"].keys()) == {
+            "github",
+            "atlassian",
+            "local-proxy",
+        }
+
+    def test_claude_code_includes_type_field(self, simple_config):
+        result = transform_for_agent(simple_config, get_profile("claude-code"))
+        github = result["mcpServers"]["github"]
+        assert "type" in github
+        assert github["type"] == "stdio"
+
+    def test_claude_code_flat_headers(self, simple_config):
+        result = transform_for_agent(simple_config, get_profile("claude-code"))
+        atlassian = result["mcpServers"]["atlassian"]
+        assert "headers" in atlassian
+        assert "requestInit" not in atlassian
+        assert atlassian["headers"]["X-Atlassian-Token"] == "test-token"
+
     def test_override_merges_partial(self):
         """Override only replaces specified fields, preserves others."""
         config = CanonicalConfig(

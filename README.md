@@ -1,12 +1,15 @@
-# twmcp
+<p align="center">
+  <img src="doc/logo_twmcp_300x300.png" alt="twmcp logo" width="200">
+</p>
+
 
 One canonical TOML config for all your MCP servers. Compiled to agent-specific JSON.
 
 ## The Problem
 
-AI coding agents (GitHub Copilot CLI, IntelliJ Copilot, Claude Desktop) each need MCP server
-configurations in their own format — different JSON keys, different type names, different header
-structures, different file locations. Maintaining these configs separately means:
+AI coding agents (GitHub Copilot CLI, IntelliJ Copilot, Claude Code, Claude Desktop) each need MCP
+server configurations in their own format — different JSON keys, different type names, different
+header structures, different file locations. Maintaining these configs separately means:
 
 - Duplicate definitions across 3+ JSON files
 - Secrets scattered in multiple locations
@@ -20,8 +23,9 @@ expected location, handling type mappings, header formats, server compatibility,
 injection.
 
 ```
-config.toml ──→ twmcp compile ──→ ~/.copilot/mcp-config.json            (Copilot CLI)
+config.toml ──→ twmcp compile ──→ .copilot/mcp-config.json              (Copilot CLI)
                                   ~/.config/github-copilot/.../mcp.json  (IntelliJ)
+                                  .claude/mcp-config.json                (Claude Code)
                                   ~/Library/.../claude_desktop_config.json(Claude Desktop)
 ```
 
@@ -113,7 +117,7 @@ twmcp compile copilot-cli --select none
 
 From the config above, each agent receives a tailored JSON file:
 
-### Copilot CLI (`~/.copilot/mcp-config.json`)
+### Copilot CLI (`.copilot/mcp-config.json`)
 
 ```json
 {
@@ -163,6 +167,36 @@ From the config above, each agent receives a tailored JSON file:
 }
 ```
 
+### Claude Code (`.claude/mcp-config.json`)
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_TOKEN": "ghp_abc123" }
+    },
+    "atlassian": {
+      "type": "http",
+      "url": "https://mycompany.atlassian.net/mcp/",
+      "headers": { "Authorization": "Bearer my-confluence-token" },
+      "tools": ["*"]
+    },
+    "local-proxy": {
+      "type": "stdio",
+      "command": "mcp-proxy",
+      "args": ["http://localhost:8113/sse"],
+      "env": { "API_TOKEN": "default-token" }
+    }
+  }
+}
+```
+
+Claude Code supports all server types (stdio, http, sse) with flat headers and the `type` field
+included. Config is project-local (written to `.claude/mcp-config.json` in CWD).
+
 ### Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`)
 
 ```json
@@ -187,13 +221,15 @@ automatically skipped. The `type` field is also omitted since Claude Desktop doe
 
 ## Agent Differences
 
-| Aspect         | Copilot CLI        | IntelliJ               | Claude Desktop         |
-|----------------|--------------------|------------------------|------------------------|
-| Top-level key  | `mcpServers`       | `servers`              | `mcpServers`           |
-| Type mapping   | `stdio` → `local`  | (none)                 | (none)                 |
-| Headers        | flat               | nested in `requestInit`| n/a                    |
-| HTTP servers   | supported          | supported              | skipped                |
-| `type` field   | included           | included               | omitted                |
+| Aspect         | Copilot CLI        | IntelliJ               | Claude Code            | Claude Desktop         |
+|----------------|--------------------|-----------------------|------------------------|------------------------|
+| Config path    | `.copilot/...`     | `~/.config/...`        | `.claude/...`          | `~/Library/...`        |
+| Scope          | project-local      | global                 | project-local          | global                 |
+| Top-level key  | `mcpServers`       | `servers`              | `mcpServers`           | `mcpServers`           |
+| Type mapping   | `stdio` → `local`  | (none)                 | (none)                 | (none)                 |
+| Headers        | flat               | nested in `requestInit`| flat                   | n/a                    |
+| HTTP servers   | supported          | supported              | supported              | skipped                |
+| `type` field   | included           | included               | included               | omitted                |
 
 ## Config Reference
 

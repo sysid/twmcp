@@ -215,9 +215,9 @@ class TestAgentsCommand:
         assert result.exit_code == 0
         data = json.loads(result.stdout)
         assert isinstance(data, list)
-        assert len(data) == 3
+        assert len(data) == 4
         names = {a["name"] for a in data}
-        assert names == {"copilot-cli", "intellij", "claude-desktop"}
+        assert names == {"copilot-cli", "intellij", "claude-code", "claude-desktop"}
 
     def test_agents_json_has_required_fields(self):
         result = runner.invoke(app, ["agents", "--json"])
