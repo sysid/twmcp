@@ -1,6 +1,6 @@
 [project]
 name = "twmcp"
-version = "0.3.0"
+version = "1.0.0"
 description = "MCP configuration compiler for multiple AI agents"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -80,7 +80,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.bumpversion]
-current_version = "0.3.0"
+current_version = "1.0.0"
 commit = true
 tag = false
 tag_name = "v{new_version}"
