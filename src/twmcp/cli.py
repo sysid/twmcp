@@ -46,7 +46,7 @@ def _load_config_or_exit(config: Path):
 @app.command()
 def compile(
     agent: Optional[str] = typer.Argument(
-        None, help="Agent name (e.g. copilot-cli, intellij, claude-desktop)"
+        None, help="Agent name (e.g. copilot-cli, intellij, claude-desktop, claude-code)"
     ),
     all_agents: bool = typer.Option(
         False, "--all", help="Compile for all registered agents"
