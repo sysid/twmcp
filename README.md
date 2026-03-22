@@ -1,5 +1,5 @@
-<p align="center">
-  <img src="doc/logo_twmcp_300x300.png" alt="twmcp logo" width="200">
+<p align="left">
+  <img src="doc/twmcp-logo.png" alt="twmcp logo" width="300">
 </p>
 
 
