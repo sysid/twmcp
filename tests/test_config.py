@@ -1,6 +1,6 @@
 import pytest
 
-from twmcp.config import load_config, CanonicalConfig, Server
+from twmcp.config import load_config, load_and_resolve, CanonicalConfig, Server
 
 
 class TestLoadConfig:
@@ -57,3 +57,48 @@ class TestLoadConfig:
         bad.write_text("this is not valid [toml")
         with pytest.raises(Exception):
             load_config(bad)
+
+
+class TestAgentOverrides:
+    def test_parses_agent_overrides(self, sample_config_overrides_path, monkeypatch):
+        monkeypatch.setenv("PROJECT_ROOT", "/tmp/fixture-root")
+        config = load_and_resolve(sample_config_overrides_path)
+        assert config.agent_overrides == {
+            "claude-code": "/tmp/fixture-root/claude.json",
+            "claude-desktop": "~/custom/claude-desktop.json",
+        }
+
+    def test_missing_agents_section_yields_empty_dict(self, sample_config_path):
+        config = load_config(sample_config_path)
+        assert config.agent_overrides == {}
+
+    def test_unknown_agent_name_raises(self, tmp_path):
+        bad = tmp_path / "bad.toml"
+        bad.write_text(
+            "[agents.does-not-exist]\n"
+            'config_path = "/tmp/x.json"\n'
+            "\n"
+            "[servers.s]\n"
+            'command = "echo"\n'
+        )
+        with pytest.raises(ValueError) as exc:
+            load_config(bad)
+        msg = str(exc.value)
+        assert "does-not-exist" in msg
+        assert "claude-code" in msg  # valid agents listed
+
+    def test_non_string_config_path_raises(self, tmp_path):
+        bad = tmp_path / "bad.toml"
+        bad.write_text(
+            '[agents.claude-code]\nconfig_path = 42\n\n[servers.s]\ncommand = "echo"\n'
+        )
+        with pytest.raises(ValueError) as exc:
+            load_config(bad)
+        assert "config_path" in str(exc.value)
+        assert "string" in str(exc.value)
+
+    def test_empty_agent_section_is_accepted(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text('[agents.claude-code]\n\n[servers.s]\ncommand = "echo"\n')
+        config = load_config(cfg)
+        assert "claude-code" not in config.agent_overrides

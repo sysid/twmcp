@@ -2,7 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from twmcp.agents import AgentProfile, get_profile, list_agents, AGENT_REGISTRY
+from twmcp.agents import (
+    AgentProfile,
+    get_profile,
+    list_agents,
+    resolve_profile,
+    AGENT_REGISTRY,
+)
 
 
 class TestAgentProfile:
@@ -52,3 +58,28 @@ class TestAgentProfile:
 
     def test_registry_has_four_agents(self):
         assert len(AGENT_REGISTRY) == 4
+
+
+class TestResolveProfile:
+    def test_no_override_returns_registry_entry(self):
+        p = resolve_profile("claude-code", {})
+        assert p is AGENT_REGISTRY["claude-code"]
+
+    def test_override_expands_user_home(self):
+        p = resolve_profile("claude-code", {"claude-code": "~/foo.json"})
+        assert p.config_path == Path.home() / "foo.json"
+        assert p.top_level_key == "mcpServers"  # non-path fields preserved
+        assert p.header_style == "flat"
+
+    def test_override_absolute_path(self):
+        p = resolve_profile("claude-desktop", {"claude-desktop": "/tmp/x.json"})
+        assert p.config_path == Path("/tmp/x.json")
+
+    def test_override_only_applies_to_named_agent(self):
+        overrides = {"claude-code": "/tmp/c.json"}
+        p = resolve_profile("claude-desktop", overrides)
+        assert p is AGENT_REGISTRY["claude-desktop"]
+
+    def test_unknown_agent_raises(self):
+        with pytest.raises(KeyError):
+            resolve_profile("nope", {"nope": "/tmp/x.json"})

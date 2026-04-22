@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 
 from twmcp import __version__
-from twmcp.agents import get_profile, list_agents, AGENT_REGISTRY
+from twmcp.agents import list_agents, resolve_profile, AGENT_REGISTRY
 from twmcp.compiler import transform_for_agent, write_config
 from twmcp.config import CanonicalConfig, load_and_resolve
 from twmcp.editor import init_config, open_in_editor
@@ -46,7 +46,8 @@ def _load_config_or_exit(config: Path):
 @app.command()
 def compile(
     agent: Optional[str] = typer.Argument(
-        None, help="Agent name (e.g. copilot-cli, intellij, claude-desktop, claude-code)"
+        None,
+        help="Agent name (e.g. copilot-cli, intellij, claude-desktop, claude-code)",
     ),
     all_agents: bool = typer.Option(
         False, "--all", help="Compile for all registered agents"
@@ -86,6 +87,12 @@ def compile(
     else:
         assert agent is not None  # guarded by the check above
         _compile_single(agent, canonical, dry_run)
+
+
+def _resolved_profiles(canonical: CanonicalConfig):
+    """Yield effective AgentProfile for every registered agent, applying overrides."""
+    for base in list_agents():
+        yield resolve_profile(base.name, canonical.agent_overrides)
 
 
 def _resolve_selection(
@@ -133,12 +140,16 @@ def _resolve_selection(
         return canonical
 
     filtered = {k: v for k, v in canonical.servers.items() if k in selected}
-    return CanonicalConfig(servers=filtered, env_file=canonical.env_file)
+    return CanonicalConfig(
+        servers=filtered,
+        env_file=canonical.env_file,
+        agent_overrides=canonical.agent_overrides,
+    )
 
 
-def _compile_single(agent: str, canonical, dry_run: bool) -> None:
+def _compile_single(agent: str, canonical: CanonicalConfig, dry_run: bool) -> None:
     try:
-        profile = get_profile(agent)
+        profile = resolve_profile(agent, canonical.agent_overrides)
     except KeyError:
         available = ", ".join(sorted(AGENT_REGISTRY))
         typer.echo(
@@ -157,9 +168,9 @@ def _compile_single(agent: str, canonical, dry_run: bool) -> None:
         typer.echo(f"Written: {profile.config_path}", err=True)
 
 
-def _compile_all(canonical, dry_run: bool) -> None:
+def _compile_all(canonical: CanonicalConfig, dry_run: bool) -> None:
     errors: list[str] = []
-    for profile in list_agents():
+    for profile in _resolved_profiles(canonical):
         compiled = transform_for_agent(canonical, profile)
         if dry_run:
             typer.echo(f"--- {profile.name} ---")
@@ -225,8 +236,25 @@ def edit(
 @app.command()
 def agents(
     json_output: bool = typer.Option(False, "--json", help="Output as JSON array"),
+    config: Path = typer.Option(DEFAULT_CONFIG, help="Path to canonical config"),
 ) -> None:
     """List supported agents with config details."""
+    overrides: dict[str, str] = {}
+    try:
+        overrides = load_and_resolve(config).agent_overrides
+    except FileNotFoundError:
+        typer.echo(
+            f"Warning: config file not found: {config}; showing built-in defaults.",
+            err=True,
+        )
+    except ValueError as e:
+        typer.echo(
+            f"Warning: could not load config {config}: {e}; showing built-in defaults.",
+            err=True,
+        )
+
+    effective = [resolve_profile(a.name, overrides) for a in list_agents()]
+
     if json_output:
         data = [
             {
@@ -234,14 +262,13 @@ def agents(
                 "config_path": str(a.config_path),
                 "top_level_key": a.top_level_key,
             }
-            for a in list_agents()
+            for a in effective
         ]
         typer.echo(json.dumps(data, indent=2))
     else:
-        # Simple table output
         typer.echo(f"{'Agent':<20s} {'Config Path':<50s} {'Key'}")
         typer.echo(f"{'-' * 20} {'-' * 50} {'-' * 15}")
-        for a in list_agents():
+        for a in effective:
             path_str = str(a.config_path).replace(str(Path.home()), "~")
             typer.echo(f"{a.name:<20s} {path_str:<50s} {a.top_level_key}")
 

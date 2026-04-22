@@ -5,6 +5,7 @@ import pytest
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 SAMPLE_CONFIG = FIXTURES_DIR / "sample_config.toml"
+SAMPLE_CONFIG_OVERRIDES = FIXTURES_DIR / "sample_config_with_overrides.toml"
 SAMPLE_SECRETS = FIXTURES_DIR / "secrets.env"
 EXPECTED_DIR = FIXTURES_DIR / "expected"
 
@@ -17,6 +18,11 @@ def fixtures_dir():
 @pytest.fixture
 def sample_config_path():
     return SAMPLE_CONFIG
+
+
+@pytest.fixture
+def sample_config_overrides_path():
+    return SAMPLE_CONFIG_OVERRIDES
 
 
 @pytest.fixture

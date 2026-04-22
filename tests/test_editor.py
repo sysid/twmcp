@@ -135,3 +135,66 @@ class TestInitConfig:
         with pytest.raises(FileExistsError):
             init_config(config)
         assert config.read_text() == original
+
+
+class TestAgentOverridesInTemplate:
+    """Init template must seed a commented [agents.*] block for every registered
+    agent so users discover the override mechanism (US2)."""
+
+    def _uncomment_agents_block(self, text: str) -> str:
+        # Strip the leading "# " from lines that start an [agents.<name>] or
+        # config_path = ... entry. Leaves header/instruction comments alone.
+        out = []
+        for line in text.splitlines():
+            stripped = line.lstrip()
+            if stripped.startswith("# [agents.") or stripped.startswith(
+                "# config_path"
+            ):
+                # Remove the leading "# " (preserving surrounding indentation).
+                idx = line.find("# ")
+                out.append(line[:idx] + line[idx + 2 :])
+            else:
+                out.append(line)
+        return "\n".join(out)
+
+    def test_template_includes_commented_agents_block(self):
+        from twmcp.agents import AGENT_REGISTRY
+
+        for name in AGENT_REGISTRY:
+            assert f"# [agents.{name}]" in DEFAULT_CONFIG_TEMPLATE, (
+                f"missing seeded block for {name}"
+            )
+
+    def test_template_agents_block_uncomments_to_valid_toml(self):
+        from twmcp.agents import AGENT_REGISTRY
+
+        uncommented = self._uncomment_agents_block(DEFAULT_CONFIG_TEMPLATE)
+        parsed = tomllib.loads(uncommented)
+        agents_section = parsed.get("agents", {})
+        assert set(agents_section.keys()) == set(AGENT_REGISTRY.keys())
+        for name, block in agents_section.items():
+            assert "config_path" in block
+            assert isinstance(block["config_path"], str)
+
+    def test_template_renders_home_paths_with_tilde(self):
+        # Any registry entry under the user's home dir must appear as "~/..."
+        # in the seeded block, matching the `twmcp agents` display convention.
+        import re
+        from pathlib import Path
+
+        home = str(Path.home())
+        block_matches = re.findall(
+            r'# config_path = "([^"]+)"', DEFAULT_CONFIG_TEMPLATE
+        )
+        assert block_matches, "no config_path lines found in template"
+        for path in block_matches:
+            assert home not in path, (
+                f"path {path!r} should have been shortened to ~/..."
+            )
+
+    def test_init_config_file_contains_agents_block(self, tmp_path):
+        config = tmp_path / "config.toml"
+        init_config(config)
+        text = config.read_text()
+        assert "[agents." in text
+        assert "config_path" in text

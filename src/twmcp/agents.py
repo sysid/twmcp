@@ -61,3 +61,23 @@ def get_profile(name: str) -> AgentProfile:
 
 def list_agents() -> list[AgentProfile]:
     return list(AGENT_REGISTRY.values())
+
+
+def resolve_profile(name: str, overrides: dict[str, str]) -> AgentProfile:
+    """Return the profile for ``name`` with its ``config_path`` replaced by the
+    override if one exists in ``overrides``. Applies ``~`` expansion.
+
+    Raises KeyError for unknown agent names (via get_profile).
+    """
+    base = get_profile(name)
+    override = overrides.get(name)
+    if override is None:
+        return base
+    # AgentProfile is frozen — use dataclasses.replace-like pattern via constructor.
+    return AgentProfile(
+        name=base.name,
+        config_path=Path(override).expanduser(),
+        top_level_key=base.top_level_key,
+        type_mapping=base.type_mapping,
+        header_style=base.header_style,
+    )

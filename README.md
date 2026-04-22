@@ -275,6 +275,24 @@ Override any server field for a specific agent. Only non-null fields are applied
 type = "local"    # override type for copilot-cli only
 ```
 
+### Agent Output Paths (`[agents.<name>]`)
+
+Override where `twmcp` writes each agent's compiled MCP config. Optional —
+omit the section entirely to keep the built-in defaults.
+
+```toml
+[agents.claude-code]
+config_path = "${PROJECT_ROOT:-.}/.mcp/claude.json"
+
+[agents.claude-desktop]
+config_path = "~/dotfiles/claude/desktop.json"
+```
+
+Supported in the path string: `~`, `${VAR}`, `${VAR:-default}`. Relative paths
+resolve against the current working directory (matching the built-in defaults).
+`twmcp edit --init` seeds a commented block for every registered agent so you
+can discover and enable overrides without reading the source.
+
 ## CLI Reference
 
 ```
@@ -287,8 +305,9 @@ twmcp compile <agent> --select none # empty config (no servers)
 twmcp compile --all --select a,b    # filter applied to all agents
 twmcp compile <agent> --config PATH # use custom config path
 
-twmcp agents                        # list supported agents
+twmcp agents                        # list supported agents (effective paths)
 twmcp agents --json                 # list as JSON
+twmcp agents --config PATH          # use a custom config for override display
 ```
 
 ### `--select` and `--interactive` Flags

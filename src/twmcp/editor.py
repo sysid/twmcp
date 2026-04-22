@@ -18,7 +18,7 @@ def resolve_editor() -> tuple[str, list[str]]:
     return parts[0], parts[1:]
 
 
-DEFAULT_CONFIG_TEMPLATE = """\
+_TEMPLATE_HEADER = """\
 # twmcp canonical configuration
 # See: https://github.com/sysid/twmcp
 #
@@ -42,6 +42,31 @@ type = "stdio"
 # [servers.example-http.headers]
 # Authorization = "Bearer ${AUTH_TOKEN}"
 """
+
+_AGENTS_BLOCK_HEADER = """\
+
+# ---- Agent output paths (optional overrides) ----
+# Uncomment a block below to override where twmcp writes that agent's config.
+# Supports ${VAR}, ${VAR:-default}, and ~ expansion. Relative paths resolve
+# against the current working directory (matching built-in defaults).
+"""
+
+
+def _build_agents_block() -> str:
+    # Imported here to avoid a circular import at module load.
+    from twmcp.agents import AGENT_REGISTRY
+
+    home = str(Path.home())
+    lines: list[str] = [_AGENTS_BLOCK_HEADER]
+    for profile in AGENT_REGISTRY.values():
+        shown = str(profile.config_path).replace(home, "~")
+        lines.append("")
+        lines.append(f"# [agents.{profile.name}]")
+        lines.append(f'# config_path = "{shown}"')
+    return "\n".join(lines) + "\n"
+
+
+DEFAULT_CONFIG_TEMPLATE = _TEMPLATE_HEADER + _build_agents_block()
 
 
 def init_config(path: Path) -> None:

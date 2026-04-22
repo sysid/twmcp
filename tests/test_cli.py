@@ -923,3 +923,133 @@ class TestEditCommand:
         config.write_text(original)
         runner.invoke(app, ["edit", "--init", "--config", str(config)])
         assert config.read_text() == original
+
+
+class TestCompileWithOverrides:
+    """Test `[agents.*]` config_path overrides (US1)."""
+
+    def test_override_redirects_write(
+        self, sample_config_overrides_path, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("PROJECT_ROOT", str(tmp_path))
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "claude-code",
+                "--config",
+                str(sample_config_overrides_path),
+            ],
+        )
+        assert result.exit_code == 0, result.stdout
+        assert (tmp_path / "claude.json").exists()
+        content = json.loads((tmp_path / "claude.json").read_text())
+        assert "mcpServers" in content
+
+    def test_compile_all_respects_overrides(self, tmp_path):
+        # Override every agent so no default paths are written (keeps the test
+        # hermetic — no dependency on real HOME / real CWD / sandbox perms).
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            f'[agents.copilot-cli]\nconfig_path = "{tmp_path}/copilot.json"\n'
+            f'[agents.intellij]\nconfig_path = "{tmp_path}/intellij.json"\n'
+            f'[agents.claude-code]\nconfig_path = "{tmp_path}/claude-code.json"\n'
+            f'[agents.claude-desktop]\nconfig_path = "{tmp_path}/claude-desktop.json"\n'
+            '[servers.s]\ncommand = "echo"\ntype = "stdio"\n'
+        )
+        result = runner.invoke(app, ["compile", "--all", "--config", str(cfg)])
+        assert result.exit_code == 0, result.stdout
+        for agent in ("copilot", "intellij", "claude-code", "claude-desktop"):
+            assert (tmp_path / f"{agent}.json").exists()
+
+    def test_agents_shows_overrides_text(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            '[agents.claude-code]\nconfig_path = "/tmp/custom-claude-code.json"\n'
+            '[servers.s]\ncommand = "echo"\ntype = "stdio"\n'
+        )
+        result = runner.invoke(app, ["agents", "--config", str(cfg)])
+        assert result.exit_code == 0
+        assert "/tmp/custom-claude-code.json" in result.stdout
+        # Non-overridden agent still shows its default
+        assert ".copilot/mcp-config.json" in result.stdout
+
+    def test_agents_shows_overrides_json(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            '[agents.claude-code]\nconfig_path = "/tmp/custom-claude-code.json"\n'
+            '[servers.s]\ncommand = "echo"\ntype = "stdio"\n'
+        )
+        result = runner.invoke(app, ["agents", "--json", "--config", str(cfg)])
+        assert result.exit_code == 0
+        data = {a["name"]: a["config_path"] for a in json.loads(result.stdout)}
+        assert data["claude-code"] == "/tmp/custom-claude-code.json"
+        assert data["copilot-cli"].endswith("mcp-config.json")
+
+    def test_agents_missing_config_warns_and_falls_back(self, tmp_path):
+        missing = tmp_path / "nonexistent.toml"
+        result = runner.invoke(app, ["agents", "--config", str(missing)])
+        assert result.exit_code == 0
+        # Should still list all agents via registry defaults
+        assert "copilot-cli" in result.stdout
+        assert "claude-code" in result.stdout
+        # Warning surfaced somewhere in output (stdout or stderr mixed)
+        assert (
+            "warning" in result.stdout.lower()
+            or "warning" in (result.stderr if hasattr(result, "stderr") else "").lower()
+        )
+
+    def test_override_respected_with_select_flag(self, tmp_path):
+        """Regression: --select must not drop agent_overrides."""
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            f'[agents.copilot-cli]\nconfig_path = "{tmp_path}/selected.json"\n'
+            '[servers.demo]\ncommand = "echo"\ntype = "stdio"\n'
+        )
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(cfg),
+                "--select",
+                "demo",
+            ],
+        )
+        assert result.exit_code == 0, result.stdout
+        assert (tmp_path / "selected.json").exists()
+
+    @patch("twmcp.cli.is_interactive_terminal", return_value=True)
+    @patch("twmcp.cli.select_servers_interactive", return_value=["demo"])
+    def test_override_respected_with_interactive_flag(
+        self, mock_sel, mock_tty, tmp_path
+    ):
+        """Regression: --interactive must not drop agent_overrides."""
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            f'[agents.copilot-cli]\nconfig_path = "{tmp_path}/interactive.json"\n'
+            '[servers.demo]\ncommand = "echo"\ntype = "stdio"\n'
+        )
+        result = runner.invoke(
+            app,
+            ["compile", "copilot-cli", "--config", str(cfg), "--interactive"],
+        )
+        assert result.exit_code == 0, result.stdout
+        assert (tmp_path / "interactive.json").exists()
+
+    def test_unknown_agent_in_config_exits_1(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            "[agents.bogus-agent]\n"
+            'config_path = "/tmp/x.json"\n'
+            "\n"
+            "[servers.s]\n"
+            'command = "echo"\n'
+            'type = "stdio"\n'
+        )
+        result = runner.invoke(
+            app, ["compile", "claude-code", "--config", str(cfg), "--dry-run"]
+        )
+        assert result.exit_code == 1
+        assert "bogus-agent" in result.stdout

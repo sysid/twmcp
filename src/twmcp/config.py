@@ -3,6 +3,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from twmcp.agents import AGENT_REGISTRY
 from twmcp.interpolate import find_unresolved, load_dotenv, resolve_variables
 
 
@@ -35,6 +36,7 @@ class Server:
 class CanonicalConfig:
     servers: dict[str, Server]
     env_file: str | None = None
+    agent_overrides: dict[str, str] = field(default_factory=dict)
 
 
 def _parse_server(name: str, data: dict) -> Server:
@@ -62,6 +64,38 @@ def _load_raw(path: Path) -> dict:
         return tomllib.load(f)
 
 
+def _parse_agent_overrides(raw: dict) -> dict[str, str]:
+    """Parse `[agents.<name>]` sections. Validate names against AGENT_REGISTRY
+    and `config_path` values as strings. Empty sections are silently ignored.
+    """
+    agents_raw = raw.get("agents") or {}
+    if not isinstance(agents_raw, dict):
+        raise ValueError(f"[agents] must be a table, got {type(agents_raw).__name__}")
+
+    overrides: dict[str, str] = {}
+    valid = sorted(AGENT_REGISTRY)
+    for name, section in agents_raw.items():
+        if name not in AGENT_REGISTRY:
+            raise ValueError(
+                f'Unknown agent "{name}" in [agents.*]. '
+                f"Valid agents: {', '.join(valid)}"
+            )
+        if not isinstance(section, dict):
+            raise ValueError(
+                f"[agents.{name}] must be a table, got {type(section).__name__}"
+            )
+        config_path = section.get("config_path")
+        if config_path is None:
+            continue
+        if not isinstance(config_path, str):
+            raise ValueError(
+                f"[agents.{name}].config_path must be a string, "
+                f"got {type(config_path).__name__}"
+            )
+        overrides[name] = config_path
+    return overrides
+
+
 def _parse_raw(raw: dict, path: Path) -> CanonicalConfig:
     servers_raw = raw.get("servers")
     if not servers_raw:
@@ -74,6 +108,7 @@ def _parse_raw(raw: dict, path: Path) -> CanonicalConfig:
     return CanonicalConfig(
         servers=servers,
         env_file=raw.get("env_file"),
+        agent_overrides=_parse_agent_overrides(raw),
     )
 
 
