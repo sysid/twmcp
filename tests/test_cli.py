@@ -205,10 +205,11 @@ class TestAgentsCommand:
         assert "claude-desktop" in result.stdout
 
     def test_agents_shows_config_paths(self):
-        result = runner.invoke(app, ["agents"])
+        result = runner.invoke(app, ["agents", "--config", "/nonexistent.toml"])
         assert result.exit_code == 0
-        assert "mcp-config.json" in result.stdout
-        assert "mcp.json" in result.stdout
+        assert ".copilot/mcp-config.json" in result.stdout
+        assert ".mcp.json" in result.stdout
+        assert "claude_desktop_config.json" in result.stdout
 
     def test_agents_json_output(self):
         result = runner.invoke(app, ["agents", "--json"])

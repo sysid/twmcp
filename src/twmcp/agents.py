@@ -1,5 +1,8 @@
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -30,7 +33,7 @@ AGENT_REGISTRY: dict[str, AgentProfile] = {
     ),
     "claude-code": AgentProfile(
         name="claude-code",
-        config_path=Path(".claude") / "mcp-config.json",
+        config_path=Path(".mcp.json"),
         top_level_key="mcpServers",
         type_mapping={},
         header_style="flat",
@@ -72,11 +75,23 @@ def resolve_profile(name: str, overrides: dict[str, str]) -> AgentProfile:
     base = get_profile(name)
     override = overrides.get(name)
     if override is None:
+        logger.debug(
+            "agent %r: using built-in default config_path=%s", name, base.config_path
+        )
         return base
-    # AgentProfile is frozen — use dataclasses.replace-like pattern via constructor.
+    resolved = Path(override).expanduser()
+    logger.debug(
+        "agent %r: config_path OVERRIDDEN by [agents.%s] config_path=%r → %s "
+        "(default was %s)",
+        name,
+        name,
+        override,
+        resolved,
+        base.config_path,
+    )
     return AgentProfile(
         name=base.name,
-        config_path=Path(override).expanduser(),
+        config_path=resolved,
         top_level_key=base.top_level_key,
         type_mapping=base.type_mapping,
         header_style=base.header_style,

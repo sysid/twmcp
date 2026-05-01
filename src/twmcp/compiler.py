@@ -1,9 +1,12 @@
 import json
+import logging
 import sys
 from pathlib import Path
 
 from twmcp.agents import AgentProfile
 from twmcp.config import CanonicalConfig, Server
+
+logger = logging.getLogger(__name__)
 
 
 def _apply_override(server: Server, agent_name: str) -> Server:
@@ -12,6 +15,14 @@ def _apply_override(server: Server, agent_name: str) -> Server:
         return server
 
     ov = server.overrides[agent_name]
+    fields = [
+        f
+        for f in ("command", "args", "type", "env", "url", "headers", "tools")
+        if getattr(ov, f) is not None
+    ]
+    logger.debug(
+        "applying per-server override for agent=%r: fields=%s", agent_name, fields
+    )
     return Server(
         command=ov.command if ov.command is not None else server.command,
         args=ov.args if ov.args is not None else server.args,
@@ -70,10 +81,27 @@ def _build_server_dict(server: Server, profile: AgentProfile) -> dict | None:
 
 def transform_for_agent(config: CanonicalConfig, profile: AgentProfile) -> dict:
     """Transform canonical config into agent-specific JSON structure."""
+    logger.debug(
+        "transform_for_agent: agent=%r top_level_key=%r header_style=%r "
+        "type_mapping=%s servers_in=%d",
+        profile.name,
+        profile.top_level_key,
+        profile.header_style,
+        profile.type_mapping,
+        len(config.servers),
+    )
     servers: dict = {}
     for name, server in config.servers.items():
         server_dict = _build_server_dict(server, profile)
         if server_dict is None:
+            logger.debug(
+                "skipping server %r: type=%r not supported by agent=%r "
+                "(header_style=%r)",
+                name,
+                server.type,
+                profile.name,
+                profile.header_style,
+            )
             print(
                 f"Warning: Skipping server '{name}' "
                 f"(type '{server.type}' not supported by {profile.name})",
@@ -82,10 +110,20 @@ def transform_for_agent(config: CanonicalConfig, profile: AgentProfile) -> dict:
             continue
         servers[name] = server_dict
 
+    logger.debug(
+        "transform_for_agent: agent=%r servers_out=%d", profile.name, len(servers)
+    )
     return {profile.top_level_key: servers}
 
 
 def write_config(compiled: dict, path: Path) -> None:
     """Write compiled config as JSON to disk."""
+    resolved = path.resolve()
+    logger.debug(
+        "writing compiled config to %s (resolved: %s, %d byte(s) of JSON)",
+        path,
+        resolved,
+        len(json.dumps(compiled)),
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(compiled, indent=2) + "\n")

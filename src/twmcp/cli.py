@@ -79,6 +79,16 @@ def compile(
         typer.echo("Error: Cannot specify both an agent name and --all")
         raise typer.Exit(1)
 
+    logger.debug(
+        "compile invoked: agent=%r all_agents=%s config=%s dry_run=%s "
+        "select=%r interactive=%s",
+        agent,
+        all_agents,
+        config,
+        dry_run,
+        select,
+        interactive,
+    )
     canonical = _load_config_or_exit(config)
     canonical = _resolve_selection(select, interactive, canonical)
 
@@ -112,6 +122,7 @@ def _resolve_selection(
         raise typer.Exit(1)
 
     if interactive:
+        logger.debug("server selection: interactive terminal menu")
         if not is_interactive_terminal():
             typer.echo(
                 "Error: --interactive requires an interactive terminal.\n"
@@ -123,6 +134,7 @@ def _resolve_selection(
         if selected is None:
             raise typer.Exit(0)
     elif select is not None:
+        logger.debug("server selection: --select=%r", select)
         try:
             names = parse_select_value(select)
         except ValueError as e:
@@ -137,9 +149,18 @@ def _resolve_selection(
         else:
             selected = []
     else:
+        logger.debug(
+            "server selection: none — using all %d server(s)", len(canonical.servers)
+        )
         return canonical
 
     filtered = {k: v for k, v in canonical.servers.items() if k in selected}
+    logger.debug(
+        "server selection: %d of %d server(s) retained: %s",
+        len(filtered),
+        len(canonical.servers),
+        sorted(filtered),
+    )
     return CanonicalConfig(
         servers=filtered,
         env_file=canonical.env_file,
@@ -162,6 +183,7 @@ def _compile_single(agent: str, canonical: CanonicalConfig, dry_run: bool) -> No
     compiled = transform_for_agent(canonical, profile)
 
     if dry_run:
+        logger.debug("dry-run: emitting %r JSON to stdout, no file write", agent)
         typer.echo(json.dumps(compiled, indent=2))
     else:
         write_config(compiled, profile.config_path)
@@ -169,6 +191,11 @@ def _compile_single(agent: str, canonical: CanonicalConfig, dry_run: bool) -> No
 
 
 def _compile_all(canonical: CanonicalConfig, dry_run: bool) -> None:
+    logger.debug(
+        "compiling for all %d registered agent(s) (dry_run=%s)",
+        len(AGENT_REGISTRY),
+        dry_run,
+    )
     errors: list[str] = []
     for profile in _resolved_profiles(canonical):
         compiled = transform_for_agent(canonical, profile)
@@ -286,6 +313,8 @@ def main(
         datefmt="%m-%d %H:%M:%S",
         force=True,
     )
+    if verbose:
+        logger.debug("verbose mode enabled (DEBUG logging active)")
     if ctx.invoked_subcommand is None and version:
         ctx.invoke(print_version)
     if ctx.invoked_subcommand is None and not version:

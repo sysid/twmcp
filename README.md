@@ -25,7 +25,7 @@ injection.
 ```
 config.toml ──→ twmcp compile ──→ .copilot/mcp-config.json              (Copilot CLI)
                                   ~/.config/github-copilot/.../mcp.json  (IntelliJ)
-                                  .claude/mcp-config.json                (Claude Code)
+                                  .mcp.json                              (Claude Code)
                                   ~/Library/.../claude_desktop_config.json(Claude Desktop)
 ```
 
@@ -167,7 +167,7 @@ From the config above, each agent receives a tailored JSON file:
 }
 ```
 
-### Claude Code (`.claude/mcp-config.json`)
+### Claude Code (`.mcp.json`)
 
 ```json
 {
@@ -195,7 +195,7 @@ From the config above, each agent receives a tailored JSON file:
 ```
 
 Claude Code supports all server types (stdio, http, sse) with flat headers and the `type` field
-included. Config is project-local (written to `.claude/mcp-config.json` in CWD).
+included. Config is project-local (written to `.mcp.json` in CWD).
 
 ### Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`)
 

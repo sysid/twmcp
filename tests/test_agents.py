@@ -42,7 +42,7 @@ class TestAgentProfile:
     def test_claude_code_profile(self):
         p = get_profile("claude-code")
         assert p.name == "claude-code"
-        assert p.config_path == Path(".claude") / "mcp-config.json"
+        assert p.config_path == Path(".mcp.json")
         assert p.top_level_key == "mcpServers"
         assert p.type_mapping == {}
         assert p.header_style == "flat"

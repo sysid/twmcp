@@ -1,3 +1,4 @@
+import logging
 import os
 import tomllib
 from dataclasses import dataclass, field
@@ -5,6 +6,8 @@ from pathlib import Path
 
 from twmcp.agents import AGENT_REGISTRY
 from twmcp.interpolate import find_unresolved, load_dotenv, resolve_variables
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -93,6 +96,11 @@ def _parse_agent_overrides(raw: dict) -> dict[str, str]:
                 f"got {type(config_path).__name__}"
             )
         overrides[name] = config_path
+        logger.debug(
+            "[agents.%s] config_path override parsed: %r", name, config_path
+        )
+    if not overrides:
+        logger.debug("no [agents.*] config_path overrides found in config")
     return overrides
 
 
@@ -146,7 +154,13 @@ def _build_variables(raw: dict, config_dir: Path) -> dict[str, str]:
     env_file = raw.get("env_file")
     if env_file:
         dotenv_path = config_dir / env_file
-        variables.update(load_dotenv(dotenv_path))
+        dotenv_vars = load_dotenv(dotenv_path)
+        logger.debug(
+            "loaded %d variables from env_file=%s", len(dotenv_vars), dotenv_path
+        )
+        variables.update(dotenv_vars)
+    else:
+        logger.debug("no env_file declared in config")
     variables.update(os.environ)
     return variables
 
@@ -158,6 +172,7 @@ def load_config(path: Path) -> CanonicalConfig:
 
 def load_and_resolve(path: Path) -> CanonicalConfig:
     """Load config with ${VAR} and ${VAR:-default} interpolation."""
+    logger.debug("loading config from %s", path)
     raw = _load_raw(path)
     variables = _build_variables(raw, path.parent)
 
@@ -171,4 +186,10 @@ def load_and_resolve(path: Path) -> CanonicalConfig:
     assert isinstance(
         resolved, dict
     )  # raw was dict, _resolve_value preserves structure
-    return _parse_raw(resolved, path)
+    cfg = _parse_raw(resolved, path)
+    logger.debug(
+        "config loaded: %d server(s), %d agent override(s)",
+        len(cfg.servers),
+        len(cfg.agent_overrides),
+    )
+    return cfg
