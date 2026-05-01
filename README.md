@@ -303,26 +303,59 @@ twmcp compile <agent> --interactive  # interactive server picker
 twmcp compile <agent> --select a,b  # filter to named servers
 twmcp compile <agent> --select none # empty config (no servers)
 twmcp compile --all --select a,b    # filter applied to all agents
+twmcp compile <agent> --profile NAME # filter to servers in named [profiles] entry
 twmcp compile <agent> --config PATH # use custom config path
 
 twmcp agents                        # list supported agents (effective paths)
 twmcp agents --json                 # list as JSON
 twmcp agents --config PATH          # use a custom config for override display
+
+twmcp profiles                      # list defined profiles and their servers
+twmcp profiles --json               # list as JSON
+twmcp profiles --config PATH        # use a custom config
 ```
 
-### `--select` and `--interactive` Flags
+### `--select`, `--interactive`, and `--profile` Flags
 
-Server filtering uses two separate flags:
+Server filtering uses three flags. Without any of them, every server in
+`[servers]` is compiled.
 
 - **`--select <names>`**: Non-interactive filtering by comma-separated server names.
   Unknown names produce an error listing available servers. Use `--select none` to
   produce an empty config with zero servers.
 - **`--interactive`**: Opens an interactive terminal prompt where you toggle servers
   with Space and confirm with Enter. Requires an interactive terminal (TTY).
+- **`--profile <name>`**: Selects the servers listed in the named `[profiles]` entry
+  in the canonical config. See [Profiles](#profiles) below.
 
-The two flags are mutually exclusive — using both produces an error.
+`--select` and `--interactive` are mutually exclusive. `--select` and `--profile`
+are mutually exclusive. **`--profile` combined with `--interactive`** opens the
+picker pre-seeded with the profile's servers (toggle to refine).
 
-When used with `--all`, the selection is applied once and used for all agent compilations.
+When used with `--all`, the selection is applied once and used for all agent
+compilations.
+
+### Profiles
+
+Group commonly-used server subsets into named profiles in your canonical config:
+
+```toml
+[profiles]
+emea = ["aws-mcp-e2e-losnext-emea", "aws-mcp-e2e-los-emea"]
+apac = ["aws-mcp-e2e-apac"]
+```
+
+Then compile only the profile's servers:
+
+```bash
+twmcp compile claude-code --profile emea
+twmcp compile --all --profile emea          # same profile across all agents
+twmcp profiles                              # discover what's defined
+```
+
+A stale profile that references a server name not present in `[servers]` only
+errors when you actually try to use it via `--profile`; other commands are
+unaffected. Profiles are flat — no nesting, no defaults.
 
 ## Architecture
 

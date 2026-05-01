@@ -1,10 +1,11 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
-from twmcp.config import Server
+from twmcp.config import CanonicalConfig, Server
 from twmcp.selector import (
     parse_select_value,
+    resolve_profile_servers,
     validate_server_names,
     select_servers_interactive,
 )
@@ -143,11 +144,23 @@ class TestSelectServersInteractive:
         assert "local-proxy [stdio]" in labels
 
     @patch("twmcp.selector.TerminalMenu")
-    def test_no_preselected_entries(self, mock_menu_cls, servers):
+    def test_no_preselected_entries_when_none_passed(self, mock_menu_cls, servers):
         mock_menu_cls.return_value.show.return_value = (0,)
         select_servers_interactive(servers)
         call_kwargs = mock_menu_cls.call_args[1]
-        assert "preselected_entries" not in call_kwargs
+        # When preselected is None, the menu should not receive preselected_entries
+        assert call_kwargs.get("preselected_entries") in (None, [])
+
+    @patch("twmcp.selector.TerminalMenu")
+    def test_preselected_forwarded_to_menu(self, mock_menu_cls, servers):
+        mock_menu_cls.return_value.show.return_value = (0,)
+        select_servers_interactive(servers, preselected={"github", "atlassian"})
+        call_kwargs = mock_menu_cls.call_args[1]
+        # Labels are "name [type]"; preselected_entries must use the same label form
+        assert set(call_kwargs["preselected_entries"]) == {
+            "github [stdio]",
+            "atlassian [http]",
+        }
 
     @patch("twmcp.selector.TerminalMenu")
     def test_single_index_returns_as_list(self, mock_menu_cls, servers):
@@ -155,3 +168,64 @@ class TestSelectServersInteractive:
         mock_menu_cls.return_value.show.return_value = 1
         result = select_servers_interactive(servers)
         assert result == ["atlassian"]
+
+
+class TestResolveProfile:
+    @pytest.fixture
+    def cfg(self):
+        return CanonicalConfig(
+            servers={
+                "server-a": Server(command="echo", args=["a"]),
+                "server-b": Server(command="echo", args=["b"]),
+                "server-c": Server(command="echo", args=["c"]),
+            },
+            profiles={
+                "emea": ["server-a", "server-b"],
+                "apac": ["server-c"],
+                "empty": [],
+                "dup": ["server-a", "server-a"],
+                "bad": ["server-x", "server-y"],
+            },
+        )
+
+    def test_unknown_profile_no_profiles_defined(self):
+        cfg = CanonicalConfig(servers={"s": Server()}, profiles={})
+        with pytest.raises(ValueError) as exc:
+            resolve_profile_servers("emea", cfg)
+        assert "No profiles defined" in str(exc.value)
+
+    def test_unknown_profile_lists_available_sorted(self, cfg):
+        with pytest.raises(ValueError) as exc:
+            resolve_profile_servers("nope", cfg)
+        msg = str(exc.value)
+        assert "Unknown profile" in msg
+        assert "nope" in msg
+        # available list sorted
+        avail_idx = msg.index("apac")
+        assert (
+            msg.index("apac")
+            < msg.index("bad")
+            < msg.index("dup")
+            < msg.index("emea")
+            < msg.index("empty")
+        )
+
+    def test_profile_references_missing_servers(self, cfg):
+        with pytest.raises(ValueError) as exc:
+            resolve_profile_servers("bad", cfg)
+        msg = str(exc.value)
+        assert "bad" in msg
+        assert "server-x" in msg
+        assert "server-y" in msg
+
+    def test_valid_profile_returns_set(self, cfg):
+        result = resolve_profile_servers("emea", cfg)
+        assert result == {"server-a", "server-b"}
+
+    def test_empty_profile_returns_empty_set(self, cfg):
+        result = resolve_profile_servers("empty", cfg)
+        assert result == set()
+
+    def test_duplicates_deduplicated(self, cfg):
+        result = resolve_profile_servers("dup", cfg)
+        assert result == {"server-a"}

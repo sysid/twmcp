@@ -14,6 +14,7 @@ from twmcp.extractor import extract_from_file
 from twmcp.selector import (
     is_interactive_terminal,
     parse_select_value,
+    resolve_profile_servers,
     select_servers_interactive,
     validate_server_names,
 )
@@ -66,6 +67,11 @@ def compile(
         "--interactive",
         help="Interactive server selection via terminal menu",
     ),
+    profile: Optional[str] = typer.Option(
+        None,
+        "--profile",
+        help="Restrict compiled output to servers in the named [profiles] entry",
+    ),
 ) -> None:
     """Compile canonical config for a specific agent or all agents."""
     if not agent and not all_agents:
@@ -81,16 +87,17 @@ def compile(
 
     logger.debug(
         "compile invoked: agent=%r all_agents=%s config=%s dry_run=%s "
-        "select=%r interactive=%s",
+        "select=%r interactive=%s profile=%r",
         agent,
         all_agents,
         config,
         dry_run,
         select,
         interactive,
+        profile,
     )
     canonical = _load_config_or_exit(config)
-    canonical = _resolve_selection(select, interactive, canonical)
+    canonical = _resolve_selection(select, interactive, canonical, profile)
 
     if all_agents:
         _compile_all(canonical, dry_run)
@@ -106,13 +113,23 @@ def _resolved_profiles(canonical: CanonicalConfig):
 
 
 def _resolve_selection(
-    select: str | None, interactive: bool, canonical: CanonicalConfig
+    select: str | None,
+    interactive: bool,
+    canonical: CanonicalConfig,
+    profile: str | None = None,
 ) -> CanonicalConfig:
-    """Apply --select or --interactive filtering to canonical config.
+    """Apply --select / --interactive / --profile filtering to canonical config.
 
-    Returns the original config if neither flag is set, or a filtered
+    Returns the original config if no flag is set, or a filtered
     copy containing only the selected servers.
     """
+    if profile is not None and select is not None:
+        typer.echo(
+            "Error: --profile and --select are mutually exclusive.\n"
+            "  Use --profile <name> alone, or --select <names> alone.",
+        )
+        raise typer.Exit(1)
+
     if select is not None and interactive:
         typer.echo(
             "Error: --select and --interactive are mutually exclusive.\n"
@@ -121,7 +138,31 @@ def _resolve_selection(
         )
         raise typer.Exit(1)
 
-    if interactive:
+    if profile is not None:
+        logger.debug(
+            "server selection: --profile=%r interactive=%s", profile, interactive
+        )
+        try:
+            profile_servers = resolve_profile_servers(profile, canonical)
+        except ValueError as e:
+            typer.echo(f"Error: {e}")
+            raise typer.Exit(1)
+        if interactive:
+            if not is_interactive_terminal():
+                typer.echo(
+                    "Error: --interactive requires an interactive terminal.\n"
+                    "  Use --select <names> for non-interactive mode.",
+                )
+                raise typer.Exit(1)
+            picked = select_servers_interactive(
+                canonical.servers, preselected=profile_servers
+            )
+            if picked is None:
+                raise typer.Exit(0)
+            selected = picked
+        else:
+            selected = [s for s in canonical.servers if s in profile_servers]
+    elif interactive:
         logger.debug("server selection: interactive terminal menu")
         if not is_interactive_terminal():
             typer.echo(
@@ -298,6 +339,45 @@ def agents(
         for a in effective:
             path_str = str(a.config_path).replace(str(Path.home()), "~")
             typer.echo(f"{a.name:<20s} {path_str:<50s} {a.top_level_key}")
+
+
+@app.command()
+def profiles(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON array"),
+    config: Path = typer.Option(DEFAULT_CONFIG, help="Path to canonical config"),
+) -> None:
+    """List all defined profiles with their member servers."""
+    profile_map: dict[str, list[str]] = {}
+    try:
+        profile_map = load_and_resolve(config).profiles
+    except FileNotFoundError:
+        typer.echo(
+            f"Warning: config file not found: {config}; no profiles to show.",
+            err=True,
+        )
+    except ValueError as e:
+        typer.echo(
+            f"Warning: could not load config {config}: {e}; no profiles to show.",
+            err=True,
+        )
+
+    if json_output:
+        data = [
+            {"name": name, "servers": list(profile_map[name])}
+            for name in sorted(profile_map)
+        ]
+        typer.echo(json.dumps(data, indent=2))
+        return
+
+    if not profile_map:
+        typer.echo(f"No profiles defined in {config}.", err=True)
+        return
+
+    typer.echo(f"{'Profile':<20s} {'Servers'}")
+    typer.echo(f"{'-' * 20} {'-' * 60}")
+    for name in sorted(profile_map):
+        servers = ", ".join(profile_map[name])
+        typer.echo(f"{name:<20s} {servers}")
 
 
 @app.callback(invoke_without_command=True)

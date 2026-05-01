@@ -40,6 +40,7 @@ class CanonicalConfig:
     servers: dict[str, Server]
     env_file: str | None = None
     agent_overrides: dict[str, str] = field(default_factory=dict)
+    profiles: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _parse_server(name: str, data: dict) -> Server:
@@ -96,12 +97,42 @@ def _parse_agent_overrides(raw: dict) -> dict[str, str]:
                 f"got {type(config_path).__name__}"
             )
         overrides[name] = config_path
-        logger.debug(
-            "[agents.%s] config_path override parsed: %r", name, config_path
-        )
+        logger.debug("[agents.%s] config_path override parsed: %r", name, config_path)
     if not overrides:
         logger.debug("no [agents.*] config_path overrides found in config")
     return overrides
+
+
+def _parse_profiles(raw: dict) -> dict[str, list[str]]:
+    """Parse `[profiles]` section. Validate types only — server-name
+    references are checked at compile time so a stale profile does not
+    break unrelated commands.
+    """
+    profiles_raw = raw.get("profiles")
+    if profiles_raw is None:
+        logger.debug("no [profiles] section found in config")
+        return {}
+    if not isinstance(profiles_raw, dict):
+        raise ValueError(
+            f"[profiles] must be a table, got {type(profiles_raw).__name__}"
+        )
+
+    profiles: dict[str, list[str]] = {}
+    for name, value in profiles_raw.items():
+        if not isinstance(value, list):
+            raise ValueError(
+                f"[profiles].{name} must be a list of server names, "
+                f"got {type(value).__name__}"
+            )
+        for i, entry in enumerate(value):
+            if not isinstance(entry, str):
+                raise ValueError(
+                    f"[profiles].{name}[{i}] must be a string, "
+                    f"got {type(entry).__name__}"
+                )
+        profiles[name] = list(value)
+        logger.debug("[profiles].%s parsed: %d server(s)", name, len(value))
+    return profiles
 
 
 def _parse_raw(raw: dict, path: Path) -> CanonicalConfig:
@@ -117,6 +148,7 @@ def _parse_raw(raw: dict, path: Path) -> CanonicalConfig:
         servers=servers,
         env_file=raw.get("env_file"),
         agent_overrides=_parse_agent_overrides(raw),
+        profiles=_parse_profiles(raw),
     )
 
 
@@ -188,8 +220,9 @@ def load_and_resolve(path: Path) -> CanonicalConfig:
     )  # raw was dict, _resolve_value preserves structure
     cfg = _parse_raw(resolved, path)
     logger.debug(
-        "config loaded: %d server(s), %d agent override(s)",
+        "config loaded: %d server(s), %d agent override(s), %d profile(s)",
         len(cfg.servers),
         len(cfg.agent_overrides),
+        len(cfg.profiles),
     )
     return cfg

@@ -1054,3 +1054,225 @@ class TestCompileWithOverrides:
         )
         assert result.exit_code == 1
         assert "bogus-agent" in result.stdout
+
+
+class TestCompileWithProfile:
+    def test_profile_filters_compiled_servers(self, sample_config_profiles_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_profiles_path),
+                "--profile",
+                "emea",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0, result.stdout
+        output = json.loads(result.stdout)
+        assert set(output["mcpServers"].keys()) == {"server-a", "server-b"}
+
+    def test_profile_and_select_mutually_exclusive(self, sample_config_profiles_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_profiles_path),
+                "--profile",
+                "emea",
+                "--select",
+                "server-a",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "mutually exclusive" in result.stdout
+
+    def test_unknown_profile_lists_available(self, sample_config_profiles_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_profiles_path),
+                "--profile",
+                "nope",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "Unknown profile" in result.stdout
+        assert "nope" in result.stdout
+        assert "emea" in result.stdout
+        assert "apac" in result.stdout
+
+    def test_profile_with_no_profiles_section_errors(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_path),
+                "--profile",
+                "emea",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "No profiles defined" in result.stdout
+
+    def test_profile_referencing_missing_server_errors(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            "[profiles]\n"
+            'bad = ["server-x", "server-y"]\n'
+            '[servers.s]\ncommand = "echo"\n'
+        )
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(cfg),
+                "--profile",
+                "bad",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "server-x" in result.stdout
+        assert "server-y" in result.stdout
+
+    def test_profile_all_agents(self, sample_config_profiles_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "--all",
+                "--config",
+                str(sample_config_profiles_path),
+                "--profile",
+                "emea",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0, result.stdout
+        # Each agent's section should only contain emea servers
+        for chunk in result.stdout.split("--- "):
+            if "{" not in chunk:
+                continue
+            json_text = chunk[chunk.index("{") :]
+            # Extract just the JSON object — until the next agent header or end
+            # Easier: parse all JSON objects out
+        # Just count: should not contain "server-c" anywhere in output
+        assert "server-c" not in result.stdout
+
+    def test_no_profile_unchanged_behavior(self, sample_config_profiles_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_profiles_path),
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert set(output["mcpServers"].keys()) == {
+            "server-a",
+            "server-b",
+            "server-c",
+        }
+
+    def test_profiles_command_lists_all(self, sample_config_profiles_path):
+        result = runner.invoke(
+            app, ["profiles", "--config", str(sample_config_profiles_path)]
+        )
+        assert result.exit_code == 0
+        assert "emea" in result.stdout
+        assert "apac" in result.stdout
+        assert "server-a" in result.stdout
+        assert "server-b" in result.stdout
+        assert "server-c" in result.stdout
+
+    def test_profiles_command_json(self, sample_config_profiles_path):
+        result = runner.invoke(
+            app,
+            ["profiles", "--config", str(sample_config_profiles_path), "--json"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        names = [p["name"] for p in data]
+        assert names == sorted(names)
+        emea = next(p for p in data if p["name"] == "emea")
+        assert emea["servers"] == ["server-a", "server-b"]
+
+    def test_profiles_command_no_profiles_section(self, sample_config_path):
+        result = runner.invoke(app, ["profiles", "--config", str(sample_config_path)])
+        assert result.exit_code == 0
+        assert "No profiles defined" in (result.stderr or result.stdout)
+
+    def test_profiles_command_no_profiles_json(self, sample_config_path):
+        result = runner.invoke(
+            app, ["profiles", "--config", str(sample_config_path), "--json"]
+        )
+        assert result.exit_code == 0
+        assert json.loads(result.stdout) == []
+
+    def test_profiles_command_missing_config_warns(self, tmp_path):
+        result = runner.invoke(
+            app, ["profiles", "--config", str(tmp_path / "nope.toml")]
+        )
+        assert result.exit_code == 0  # warn-and-fall-back
+
+    def test_empty_profile_produces_empty_output(self, sample_config_profiles_path):
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_profiles_path),
+                "--profile",
+                "empty",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["mcpServers"] == {}
+
+    @patch("twmcp.cli.is_interactive_terminal", return_value=True)
+    @patch("twmcp.cli.select_servers_interactive")
+    def test_profile_plus_interactive_preseeds(
+        self, mock_select, mock_tty, sample_config_profiles_path
+    ):
+        mock_select.return_value = ["server-a", "server-b"]
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                "copilot-cli",
+                "--config",
+                str(sample_config_profiles_path),
+                "--profile",
+                "emea",
+                "--interactive",
+                "--dry-run",
+            ],
+        )
+        assert result.exit_code == 0, result.stdout
+        # select_servers_interactive must be called with preselected = profile members
+        _args, kwargs = mock_select.call_args
+        assert "preselected" in kwargs
+        assert set(kwargs["preselected"]) == {"server-a", "server-b"}

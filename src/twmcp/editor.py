@@ -41,6 +41,14 @@ type = "stdio"
 #
 # [servers.example-http.headers]
 # Authorization = "Bearer ${AUTH_TOKEN}"
+
+# ---- Profiles (optional named subsets of servers) ----
+# Group commonly-used servers under a name; select with `compile --profile <name>`.
+# A profile lists server names already defined under [servers]. No nesting.
+#
+# [profiles]
+# emea = ["aws-mcp-e2e-losnext-emea", "aws-mcp-e2e-los-emea"]
+# apac = ["aws-mcp-e2e-apac"]
 """
 
 _AGENTS_BLOCK_HEADER = """\

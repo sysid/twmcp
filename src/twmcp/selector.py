@@ -4,12 +4,19 @@ Provides interactive multi-select prompt and non-interactive name
 validation for the --select flag.
 """
 
+import logging
 import sys
 from collections.abc import Set
+from typing import TYPE_CHECKING
 
 from simple_term_menu import TerminalMenu
 
 from twmcp.config import Server
+
+if TYPE_CHECKING:
+    from twmcp.config import CanonicalConfig
+
+logger = logging.getLogger(__name__)
 
 
 _NONE_KEYWORD = "none"
@@ -55,6 +62,53 @@ def validate_server_names(names: list[str], available: Set[str]) -> list[str]:
     return names
 
 
+def resolve_profile_servers(name: str, canonical: "CanonicalConfig") -> set[str]:
+    """Resolve a profile name to its set of server names.
+
+    Validates that ``name`` exists in ``canonical.profiles`` and that
+    every referenced server exists in ``canonical.servers``. Duplicates
+    in the profile list are deduplicated by set semantics.
+    """
+    if name not in canonical.profiles:
+        if not canonical.profiles:
+            raise ValueError(
+                f'No profiles defined in config. Cannot resolve --profile "{name}".\n'
+                f"  Add a [profiles] table to the config to define profiles."
+            )
+        available = ", ".join(sorted(canonical.profiles))
+        raise ValueError(
+            f'Unknown profile "{name}".\n'
+            f"  Available profiles: {available}\n"
+            f"  Run 'twmcp profiles' to see all defined profiles."
+        )
+
+    members = canonical.profiles[name]
+    server_keys = set(canonical.servers)
+    missing = sorted({m for m in members if m not in server_keys})
+    if missing:
+        missing_str = ", ".join(missing)
+        raise ValueError(
+            f'Profile "{name}" references unknown server(s): {missing_str}\n'
+            f"  Fix the profile definition or add the server(s) under [servers]."
+        )
+
+    resolved = set(members)
+    excluded = sorted(server_keys - resolved)
+    logger.debug(
+        "profile %r: resolved to %d server(s): %s",
+        name,
+        len(resolved),
+        sorted(resolved),
+    )
+    logger.debug(
+        "profile %r: excluded %d server(s) not in profile: %s",
+        name,
+        len(excluded),
+        excluded,
+    )
+    return resolved
+
+
 def is_interactive_terminal() -> bool:
     """Check if stdin is connected to an interactive terminal."""
     return sys.stdin.isatty()
@@ -62,14 +116,25 @@ def is_interactive_terminal() -> bool:
 
 def select_servers_interactive(
     servers: dict[str, Server],
+    preselected: "Set[str] | None" = None,
 ) -> list[str] | None:
     """Show interactive multi-select prompt for MCP servers.
+
+    ``preselected`` is an optional iterable of server names that will be
+    pre-checked in the menu (used by ``--profile <name> --interactive``).
+    Names not present in ``servers`` are silently dropped.
 
     Returns list of selected server names, empty list if none selected,
     or None if the user cancelled (Escape/Ctrl+C).
     """
     names = list(servers.keys())
     labels = [f"{name} [{servers[name].type}]" for name in names]
+
+    preselected_labels: list[str] | None = None
+    if preselected:
+        preselected_labels = [
+            f"{n} [{servers[n].type}]" for n in names if n in preselected
+        ]
 
     menu = TerminalMenu(
         labels,
@@ -78,6 +143,7 @@ def select_servers_interactive(
         multi_select_empty_ok=True,
         show_multi_select_hint=True,
         title="Select MCP servers (Space=toggle, Enter=confirm, Esc=cancel):",
+        preselected_entries=preselected_labels,
     )
     chosen = menu.show()
 

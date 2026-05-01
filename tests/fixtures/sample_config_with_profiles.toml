@@ -1,0 +1,16 @@
+[servers.server-a]
+command = "echo"
+args = ["a"]
+
+[servers.server-b]
+command = "echo"
+args = ["b"]
+
+[servers.server-c]
+command = "echo"
+args = ["c"]
+
+[profiles]
+emea = ["server-a", "server-b"]
+apac = ["server-c"]
+empty = []

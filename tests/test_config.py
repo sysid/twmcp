@@ -102,3 +102,61 @@ class TestAgentOverrides:
         cfg.write_text('[agents.claude-code]\n\n[servers.s]\ncommand = "echo"\n')
         config = load_config(cfg)
         assert "claude-code" not in config.agent_overrides
+
+
+class TestProfiles:
+    def test_no_profiles_section_yields_empty_dict(self, sample_config_path):
+        config = load_config(sample_config_path)
+        assert config.profiles == {}
+
+    def test_parses_profiles(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            "[profiles]\n"
+            'emea = ["a", "b"]\n'
+            'apac = ["c"]\n'
+            "empty = []\n"
+            '\n[servers.a]\ncommand = "echo"\n'
+            '[servers.b]\ncommand = "echo"\n'
+            '[servers.c]\ncommand = "echo"\n'
+        )
+        config = load_config(cfg)
+        assert config.profiles == {
+            "emea": ["a", "b"],
+            "apac": ["c"],
+            "empty": [],
+        }
+
+    def test_profiles_not_a_table_raises(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text('profiles = "oops"\n\n[servers.s]\ncommand = "echo"\n')
+        with pytest.raises(ValueError) as exc:
+            load_config(cfg)
+        assert "[profiles]" in str(exc.value)
+        assert "table" in str(exc.value)
+
+    def test_profile_value_not_a_list_raises(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            '[profiles]\nemea = "server-a"\n\n[servers.s]\ncommand = "echo"\n'
+        )
+        with pytest.raises(ValueError) as exc:
+            load_config(cfg)
+        assert "emea" in str(exc.value)
+        assert "list" in str(exc.value)
+
+    def test_profile_entry_not_a_string_raises(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text(
+            '[profiles]\nemea = ["a", 42]\n\n[servers.s]\ncommand = "echo"\n'
+        )
+        with pytest.raises(ValueError) as exc:
+            load_config(cfg)
+        assert "emea" in str(exc.value)
+        assert "string" in str(exc.value)
+
+    def test_empty_profile_list_is_valid(self, tmp_path):
+        cfg = tmp_path / "cfg.toml"
+        cfg.write_text('[profiles]\nempty = []\n\n[servers.s]\ncommand = "echo"\n')
+        config = load_config(cfg)
+        assert config.profiles == {"empty": []}
