@@ -1280,9 +1280,7 @@ class TestCompileWithProfile:
 
 class TestServersCommand:
     def test_servers_command_lists_all(self, sample_config_path):
-        result = runner.invoke(
-            app, ["servers", "--config", str(sample_config_path)]
-        )
+        result = runner.invoke(app, ["servers", "--config", str(sample_config_path)])
         assert result.exit_code == 0
         assert "github" in result.stdout
         assert "atlassian" in result.stdout
@@ -1303,9 +1301,7 @@ class TestServersCommand:
         assert "local-proxy" in names
 
     def test_servers_command_shows_type(self, sample_config_path):
-        result = runner.invoke(
-            app, ["servers", "--config", str(sample_config_path)]
-        )
+        result = runner.invoke(app, ["servers", "--config", str(sample_config_path)])
         assert result.exit_code == 0
         assert "stdio" in result.stdout
         assert "http" in result.stdout

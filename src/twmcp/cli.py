@@ -402,8 +402,7 @@ def servers(
 
     if json_output:
         data = [
-            {"name": name, "type": server_map[name].type}
-            for name in sorted(server_map)
+            {"name": name, "type": server_map[name].type} for name in sorted(server_map)
         ]
         typer.echo(json.dumps(data, indent=2))
         return
