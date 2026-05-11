@@ -380,6 +380,44 @@ def profiles(
         typer.echo(f"{name:<20s} {servers}")
 
 
+@app.command()
+def servers(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON array"),
+    config: Path = typer.Option(DEFAULT_CONFIG, help="Path to canonical config"),
+) -> None:
+    """List all available MCP servers defined in the config."""
+    server_map: dict[str, "Server"] = {}
+    try:
+        server_map = load_and_resolve(config).servers
+    except FileNotFoundError:
+        typer.echo(
+            f"Warning: config file not found: {config}; no servers to show.",
+            err=True,
+        )
+    except ValueError as e:
+        typer.echo(
+            f"Warning: could not load config {config}: {e}; no servers to show.",
+            err=True,
+        )
+
+    if json_output:
+        data = [
+            {"name": name, "type": server_map[name].type}
+            for name in sorted(server_map)
+        ]
+        typer.echo(json.dumps(data, indent=2))
+        return
+
+    if not server_map:
+        typer.echo(f"No servers defined in {config}.", err=True)
+        return
+
+    typer.echo(f"{'Server':<30s} {'Type'}")
+    typer.echo(f"{'-' * 30} {'-' * 15}")
+    for name in sorted(server_map):
+        typer.echo(f"{name:<30s} {server_map[name].type}")
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,

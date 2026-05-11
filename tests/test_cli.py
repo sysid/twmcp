@@ -1276,3 +1276,62 @@ class TestCompileWithProfile:
         _args, kwargs = mock_select.call_args
         assert "preselected" in kwargs
         assert set(kwargs["preselected"]) == {"server-a", "server-b"}
+
+
+class TestServersCommand:
+    def test_servers_command_lists_all(self, sample_config_path):
+        result = runner.invoke(
+            app, ["servers", "--config", str(sample_config_path)]
+        )
+        assert result.exit_code == 0
+        assert "github" in result.stdout
+        assert "atlassian" in result.stdout
+        assert "local-proxy" in result.stdout
+
+    def test_servers_command_json(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            ["servers", "--config", str(sample_config_path), "--json"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        names = [s["name"] for s in data]
+        assert names == sorted(names)
+        assert "github" in names
+        assert "atlassian" in names
+        assert "local-proxy" in names
+
+    def test_servers_command_shows_type(self, sample_config_path):
+        result = runner.invoke(
+            app, ["servers", "--config", str(sample_config_path)]
+        )
+        assert result.exit_code == 0
+        assert "stdio" in result.stdout
+        assert "http" in result.stdout
+
+    def test_servers_command_json_includes_type(self, sample_config_path):
+        result = runner.invoke(
+            app,
+            ["servers", "--config", str(sample_config_path), "--json"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        github = next(s for s in data if s["name"] == "github")
+        assert github["type"] == "stdio"
+        atlassian = next(s for s in data if s["name"] == "atlassian")
+        assert atlassian["type"] == "http"
+
+    def test_servers_command_missing_config_warns(self, tmp_path):
+        result = runner.invoke(
+            app, ["servers", "--config", str(tmp_path / "nope.toml")]
+        )
+        assert result.exit_code == 0
+
+    def test_servers_command_no_servers_json(self, tmp_path):
+        """Missing config → empty JSON list."""
+        result = runner.invoke(
+            app, ["servers", "--config", str(tmp_path / "nope.toml"), "--json"]
+        )
+        assert result.exit_code == 0
+        assert json.loads(result.stdout) == []
